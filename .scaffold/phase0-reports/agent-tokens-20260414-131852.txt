@@ -1,0 +1,14 @@
+Agent Token 估算报告 - 2026-04-14T13:18:52+08:00
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+builder                  1028 bytes ≈    290 tokens
+designer                 1088 bytes ≈    310 tokens
+devex                     903 bytes ≈    250 tokens
+release                   909 bytes ≈    250 tokens
+retro                     877 bytes ≈    250 tokens
+reviewer                 1104 bytes ≈    310 tokens
+security                 1123 bytes ≈    320 tokens
+strategist                998 bytes ≈    280 tokens
+test-lead                 970 bytes ≈    270 tokens
+CLAUDE.md                            ≈    320 tokens
+AGENTS.md                            ≈    920 tokens
+TOTAL_BASE                           ≈   3770 tokens

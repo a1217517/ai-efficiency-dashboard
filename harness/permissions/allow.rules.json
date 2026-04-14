@@ -1,0 +1,40 @@
+{
+  "version": "1.0.0",
+  "rules": [
+    {
+      "tool": "Bash",
+      "pattern": "^npm run (test|lint|build|dev|type-check)",
+      "action": "allow"
+    },
+    {
+      "tool": "Bash",
+      "pattern": "^npx ",
+      "action": "allow"
+    },
+    {
+      "tool": "Bash",
+      "pattern": "^git (status|diff|log|add|commit)",
+      "action": "allow"
+    },
+    {
+      "tool": "Bash",
+      "pattern": "^./scripts/(run-skill|verify-harness|team-init|sync|measure-tokens|verify-phase0)\\.sh",
+      "action": "allow"
+    },
+    {
+      "tool": "Read",
+      "pattern": ".*",
+      "action": "allow"
+    },
+    {
+      "tool": "Glob",
+      "pattern": ".*",
+      "action": "allow"
+    },
+    {
+      "tool": "Grep",
+      "pattern": ".*",
+      "action": "allow"
+    }
+  ]
+}

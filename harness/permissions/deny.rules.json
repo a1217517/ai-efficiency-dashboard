@@ -1,0 +1,47 @@
+{
+  "version": "1.0.0",
+  "rules": [
+    {
+      "tool": "Bash",
+      "pattern": "rm -rf ",
+      "action": "deny",
+      "reason": "禁止递归删除"
+    },
+    {
+      "tool": "Bash",
+      "pattern": "git push --force",
+      "action": "deny",
+      "reason": "禁止强制推送"
+    },
+    {
+      "tool": "Bash",
+      "pattern": "^sudo ",
+      "action": "deny",
+      "reason": "禁止提权操作"
+    },
+    {
+      "tool": "Write",
+      "pattern": "\\.env",
+      "action": "deny",
+      "reason": "禁止修改环境变量文件"
+    },
+    {
+      "tool": "Write",
+      "pattern": "\\.claude/settings\\.json$",
+      "action": "deny",
+      "reason": "禁止修改核心设置"
+    },
+    {
+      "tool": "Write",
+      "pattern": "harness/permissions/",
+      "action": "deny",
+      "reason": "禁止修改权限规则"
+    },
+    {
+      "tool": "Write",
+      "pattern": "specs/00-constitution/",
+      "action": "deny",
+      "reason": "禁止修改项目宪法"
+    }
+  ]
+}

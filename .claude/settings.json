@@ -1,0 +1,78 @@
+{
+  "permissions": {
+    "allow": [
+      "Read",
+      "Glob",
+      "Grep",
+      "Bash(npm run test*)",
+      "Bash(npm run lint*)",
+      "Bash(npm run build*)",
+      "Bash(npm run dev*)",
+      "Bash(npx *)",
+      "Bash(git status)",
+      "Bash(git diff *)",
+      "Bash(git log *)",
+      "Bash(./scripts/*)"
+    ],
+    "deny": [
+      "Bash(rm -rf *)",
+      "Bash(git push --force *)",
+      "Bash(sudo *)",
+      "Write(.env*)",
+      "Write(.claude/settings.json)",
+      "Write(harness/permissions/*)",
+      "Write(specs/00-constitution/*)"
+    ],
+    "ask": [
+      "Bash(git push *)",
+      "Bash(npm publish *)",
+      "Bash(npx prisma migrate *)",
+      "Bash(./scripts/run-skill.sh test-runner --visual)"
+    ]
+  },
+  "hooks": {
+    "PreToolUse": [
+      {
+        "matcher": "Write|Edit",
+        "hooks": [
+          {
+            "type": "prompt",
+            "prompt": "检查即将写入的文件路径: $TOOL_INPUT.file_path。验证: 1) 不是 .env 或敏感配置文件 2) 不是 package-lock.json 3) 路径不包含 .. 4) 不在 .claude/ 和 harness/permissions/ 目录下。如果通过返回 'approve'，否则返回 'deny: [原因]'。"
+          }
+        ]
+      },
+      {
+        "matcher": "Bash",
+        "hooks": [
+          {
+            "type": "prompt",
+            "prompt": "检查即将执行的命令: $TOOL_INPUT.command。验证: 1) 不是 rm -rf / 2) 不是 git push --force 3) 不包含硬编码密钥。如果安全返回 'approve'，否则返回 'deny: [原因]'。"
+          }
+        ]
+      }
+    ],
+    "PostToolUse": [
+      {
+        "matcher": "Write|Edit",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "npx prettier --write \"$TOOL_INPUT.file_path\" 2>/dev/null; npx eslint --fix \"$TOOL_INPUT.file_path\" 2>/dev/null; exit 0",
+            "timeout": 30
+          }
+        ]
+      }
+    ],
+    "Stop": [
+      {
+        "matcher": "*",
+        "hooks": [
+          {
+            "type": "prompt",
+            "prompt": "审查本次对话的工作成果。如果修改了代码，验证: 1) 测试是否通过（如果没运行则标记为需要运行）2) 类型检查是否通过 3) 用户的所有问题是否都已回答 4) 是否有未完成的 TODO 需要告知用户。返回 'approve' 或 'block: [需要完成的事项]'。"
+          }
+        ]
+      }
+    ]
+  }
+}
