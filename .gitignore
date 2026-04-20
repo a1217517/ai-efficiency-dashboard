@@ -1,12 +1,6 @@
-# AI Scaffold local state
-.scaffold/mode
-.scaffold/initialized-at
-.scaffold/global-version
-.claude/settings.local.json
-.env
+node_modules/
+dist/
+.DS_Store
 .env.local
-.env.*.local
-
-# Visual regression generated files
-eval/visual/snapshots/
-eval/visual/diffs/
+*.log
+server.log

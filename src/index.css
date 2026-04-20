@@ -1,0 +1,169 @@
+@import url('https://fonts.googleapis.com/css2?family=Fira+Code:wght@400;500;600;700&family=Fira+Sans:wght@300;400;500;600;700&display=swap');
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  :root {
+    --background: 222 47% 5%;
+    --foreground: 210 40% 98%;
+    --card: 222 47% 8%;
+    --card-foreground: 210 40% 98%;
+    --popover: 222 47% 8%;
+    --popover-foreground: 210 40% 98%;
+    --primary: 213 94% 68%;
+    --primary-foreground: 222 47% 5%;
+    --secondary: 217 33% 17%;
+    --secondary-foreground: 210 40% 98%;
+    --muted: 217 33% 17%;
+    --muted-foreground: 215 20% 65%;
+    --accent: 217 33% 17%;
+    --accent-foreground: 210 40% 98%;
+    --destructive: 0 62.8% 30.6%;
+    --destructive-foreground: 210 40% 98%;
+    --border: 217 33% 17%;
+    --input: 217 33% 17%;
+    --ring: 213 94% 68%;
+    --radius: 0.5rem;
+    --cyan: 187 100% 42%;
+    --amber: 45 93% 47%;
+    --purple: 271 91% 65%;
+    --green: 142 76% 36%;
+    --red: 0 84% 60%;
+  }
+}
+
+@layer base {
+  * {
+    @apply border-border;
+  }
+  body {
+    @apply bg-background text-foreground;
+    font-family: 'Fira Sans', 'PingFang SC', 'Microsoft YaHei', sans-serif;
+    background-color: #080e1a;
+    overflow-x: hidden;
+  }
+  .font-mono {
+    font-family: 'Fira Code', 'Consolas', monospace;
+  }
+}
+
+/* Scrollbar */
+::-webkit-scrollbar {
+  width: 4px;
+  height: 4px;
+}
+::-webkit-scrollbar-track {
+  background: #0d1424;
+}
+::-webkit-scrollbar-thumb {
+  background: #1e3a5f;
+  border-radius: 2px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: #00d4ff;
+}
+
+/* Glow effects */
+.glow-blue {
+  box-shadow: 0 0 20px rgba(0, 150, 255, 0.15), inset 0 0 20px rgba(0, 150, 255, 0.03);
+}
+.glow-cyan {
+  box-shadow: 0 0 20px rgba(0, 212, 255, 0.2), inset 0 0 20px rgba(0, 212, 255, 0.05);
+}
+.glow-purple {
+  box-shadow: 0 0 20px rgba(139, 92, 246, 0.2), inset 0 0 20px rgba(139, 92, 246, 0.05);
+}
+.glow-amber {
+  box-shadow: 0 0 15px rgba(245, 158, 11, 0.2);
+}
+
+/* Card style */
+.dashboard-card {
+  background: linear-gradient(135deg, rgba(13, 20, 36, 0.9) 0%, rgba(10, 15, 28, 0.95) 100%);
+  border: 1px solid rgba(30, 58, 95, 0.6);
+  border-radius: 12px;
+  position: relative;
+  overflow: hidden;
+}
+.dashboard-card::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 1px;
+  background: linear-gradient(90deg, transparent, rgba(0, 212, 255, 0.4), transparent);
+}
+
+/* Grid line background */
+.grid-bg {
+  background-image: 
+    linear-gradient(rgba(0, 150, 255, 0.03) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(0, 150, 255, 0.03) 1px, transparent 1px);
+  background-size: 40px 40px;
+}
+
+/* Rank badge animation */
+@keyframes rankPulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.6; }
+}
+.rank-1 { animation: rankPulse 2s ease-in-out infinite; }
+
+/* Ticker scroll */
+@keyframes ticker {
+  0% { transform: translateX(0); }
+  100% { transform: translateX(-50%); }
+}
+.ticker-content {
+  animation: ticker 30s linear infinite;
+  white-space: nowrap;
+}
+
+/* Progress bar shimmer */
+@keyframes shimmer {
+  0% { background-position: -200% 0; }
+  100% { background-position: 200% 0; }
+}
+.progress-shimmer {
+  background: linear-gradient(90deg, #0066cc 0%, #00d4ff 50%, #0066cc 100%);
+  background-size: 200% 100%;
+  animation: shimmer 2s linear infinite;
+}
+
+/* Carousel fade */
+@keyframes fadeInUp {
+  from { opacity: 0; transform: translateY(10px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+.fade-in-up {
+  animation: fadeInUp 0.5s ease-out;
+}
+
+/* Counter animation */
+@keyframes countUp {
+  from { opacity: 0; transform: translateY(5px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+.count-up {
+  animation: countUp 0.3s ease-out;
+}
+
+/* Scan line effect */
+@keyframes scanline {
+  0% { transform: translateY(-100%); }
+  100% { transform: translateY(100vh); }
+}
+.scanline {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 2px;
+  background: linear-gradient(transparent, rgba(0, 212, 255, 0.1), transparent);
+  pointer-events: none;
+  z-index: 9999;
+  animation: scanline 8s linear infinite;
+}
