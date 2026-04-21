@@ -4,3 +4,5 @@ dist/
 .env.local
 *.log
 server.log
+backend/bin/
+dist/

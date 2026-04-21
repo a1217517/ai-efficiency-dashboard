@@ -11,11 +11,8 @@ export const TeamAIUsageChart: React.FC = () => {
       backgroundColor: 'rgba(10,14,26,0.95)',
       borderColor: '#1e3a5f',
       textStyle: { color: '#e2e8f0', fontSize: 12, fontFamily: 'Fira Sans' },
-      formatter: (params: { name: string; seriesName: string; value: number; data: { total: number } }[]) => {
-        const total = params[0]?.data?.total ?? 0;
-        return `<div style="padding:4px 8px"><b>${params[0]?.name}</b><br/>` +
-          params.map(p => `${p.seriesName}：${p.value} 人`).join('<br/>') +
-          `<br/>共 ${total} 人</div>`;
+      formatter: (params: { name: string; value: number }[]) => {
+        return `<div style="padding:4px 8px"><b>${params[0]?.name}</b><br/>AI 采用率：${params[0]?.value}%</div>`;
       },
     },
     legend: {
@@ -24,93 +21,88 @@ export const TeamAIUsageChart: React.FC = () => {
       textStyle: { color: '#94a3b8', fontSize: 10 },
       itemWidth: 10,
       itemHeight: 10,
+      data: ['AI 采用率'],
     },
-    grid: { left: 8, right: 12, top: 32, bottom: 4, containLabel: true },
+    grid: { left: 60, right: 12, top: 40, bottom: 60, containLabel: false },
     xAxis: {
+      type: 'category',
+      data: teamAIUsageData.map(d => d.team),
+      axisLabel: { 
+        color: '#64748b', 
+        fontSize: 10,
+        rotate: 30,
+        interval: 0,
+      },
+      axisLine: { lineStyle: { color: '#1e293b' } },
+      axisTick: { show: false },
+    },
+    yAxis: {
       type: 'value',
       max: 100,
-      axisLabel: { color: '#475569', fontSize: 10, formatter: '{value}%' },
+      axisLabel: { 
+        color: '#475569', 
+        fontSize: 10, 
+        formatter: '{value}%' 
+      },
       splitLine: { lineStyle: { color: '#1e293b' } },
       axisLine: { show: false },
     },
-    yAxis: {
-      type: 'category',
-      data: teamAIUsageData.map(d => d.team),
-      axisLabel: { color: '#94a3b8', fontSize: 10 },
-      axisLine: { show: false },
-      axisTick: { show: false },
-    },
     series: [
       {
-        name: '使用 AI',
+        name: 'AI 采用率',
         type: 'bar',
-        stack: 'total',
-        barMaxWidth: 20,
+        barMaxWidth: 24,
+        barGap: '30%',
         itemStyle: {
           color: {
             type: 'linear',
-            x: 0, y: 0, x2: 1, y2: 0,
+            x: 0, y: 0, x2: 0, y2: 1,
             colorStops: [
-              { offset: 0, color: '#0066cc' },
-              { offset: 1, color: '#00d4ff' },
+              { offset: 0, color: '#00d4ff' },
+              { offset: 1, color: '#0066cc' },
             ],
           },
-          borderRadius: [0, 0, 0, 0],
+          borderRadius: [4, 4, 0, 0],
         },
         emphasis: {
-          itemStyle: { shadowBlur: 10, shadowColor: 'rgba(0,212,255,0.4)' },
+          itemStyle: { 
+            shadowBlur: 10, 
+            shadowColor: 'rgba(0,212,255,0.5)',
+          },
         },
         data: teamAIUsageData.map(d => ({
           value: Math.round((d.aiUsers / d.totalUsers) * 100),
           total: d.totalUsers,
-          raw: d.aiUsers,
         })),
         label: {
           show: true,
-          position: 'insideRight',
-          color: '#fff',
+          position: 'top',
+          color: '#00d4ff',
           fontSize: 10,
           fontFamily: 'Fira Code',
-          formatter: (p: { value: number }) => p.value > 15 ? `${p.value}%` : '',
-        },
-      },
-      {
-        name: '未使用',
-        type: 'bar',
-        stack: 'total',
-        barMaxWidth: 20,
-        itemStyle: {
-          color: 'rgba(51,65,85,0.6)',
-          borderRadius: [0, 4, 4, 0],
-        },
-        data: teamAIUsageData.map(d => ({
-          value: Math.round(((d.totalUsers - d.aiUsers) / d.totalUsers) * 100),
-          total: d.totalUsers,
-        })),
-        label: {
-          show: false,
+          formatter: (p: { value: number }) => `${p.value}%`,
         },
       },
     ],
   }), []);
 
-  const totalAI = teamAIUsageData.reduce((s, d) => s + d.aiUsers, 0);
-  const totalAll = teamAIUsageData.reduce((s, d) => s + d.totalUsers, 0);
+  const avgRate = Math.round(
+    teamAIUsageData.reduce((s, d) => s + (d.aiUsers / d.totalUsers) * 100, 0) / teamAIUsageData.length
+  );
+  // 部门平均采用率
+  console.log('部门平均AI采用率:', avgRate + '%');
 
   return (
     <div className="dashboard-card glow-purple h-full flex flex-col p-4">
       <div className="flex items-center justify-between mb-2">
         <div className="flex items-center gap-2">
-          <div className="w-1 h-6 bg-purple-400 rounded-full" />
-          <h2 className="text-white font-semibold text-base">各团队 AI 使用比例</h2>
+          <div className="w-1 h-6 bg-cyan-400 rounded-full" />
+          <h2 className="text-white font-semibold text-base">团队 AI 占比</h2>
         </div>
-        <div className="text-right">
-          <div className="text-purple-300 font-mono text-sm font-semibold">{totalAI}/{totalAll}</div>
-          <div className="text-slate-600 text-xs">≥1万Token</div>
-        </div>
+        <span className="px-2 py-0.5 text-xs text-cyan-400 bg-cyan-400/10 border border-cyan-400/20 rounded">今日</span>
       </div>
       <div className="flex-1">
-        <ReactECharts option={option} style={{ height: '100%', minHeight: 160 }} />
+        <ReactECharts option={option} style={{ height: '100%', minHeight: 200 }} />
       </div>
     </div>
   );

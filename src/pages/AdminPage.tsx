@@ -1,0 +1,633 @@
+import React, { useState, useEffect, useCallback } from 'react';
+import {
+  Table, TableBody, TableCell, TableHead, TableHeader, TableRow,
+} from '@/components/ui/table';
+import { Button } from '@/components/ui/button';
+import {
+  Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter,
+} from '@/components/ui/dialog';
+import { Input } from '@/components/ui/input';
+
+const API_BASE = 'http://47.103.58.81:8082/api/v1';
+
+interface User {
+  id: string;
+  username: string;
+  email: string;
+  nickname: string;
+  avatar: string;
+  phone: string;
+  role: string;
+  status: number;
+  created_at: string;
+  last_login: string | null;
+}
+
+interface TeamSaving {
+  id: string;
+  team_name: string;
+  traditional_minutes: number;
+  standard_minutes: number;
+  minutes: number;
+  hours: number;
+  sort_order: number;
+  created_at: string;
+}
+
+export const AdminPage: React.FC = () => {
+  const [activeTab, setActiveTab] = useState<'users' | 'team-savings'>('users');
+  const [token, setToken] = useState(localStorage.getItem('admin_token') || '');
+  const [isLoginOpen, setIsLoginOpen] = useState(!token);
+  const [loginForm, setLoginForm] = useState({ username: '', password: '' });
+
+  // User states
+  const [users, setUsers] = useState<User[]>([]);
+  const [userTotal, setUserTotal] = useState(0);
+  const [userPage, setUserPage] = useState(1);
+  const [userPageSize] = useState(20);
+  const [userKeyword, setUserKeyword] = useState('');
+  const [userLoading, setUserLoading] = useState(false);
+  const [isUserCreateOpen, setIsUserCreateOpen] = useState(false);
+  const [isUserEditOpen, setIsUserEditOpen] = useState(false);
+  const [isUserDeleteOpen, setIsUserDeleteOpen] = useState(false);
+  const [selectedUser, setSelectedUser] = useState<User | null>(null);
+  const [userCreateForm, setUserCreateForm] = useState({ username: '', email: '', password: '', nickname: '', phone: '', role: 'user' });
+  const [userEditForm, setUserEditForm] = useState({ nickname: '', phone: '', role: 'user', status: 1 });
+
+  // TeamSaving states
+  const [savings, setSavings] = useState<TeamSaving[]>([]);
+  const [savingTotal, setSavingTotal] = useState(0);
+  const [savingPage, setSavingPage] = useState(1);
+  const [savingPageSize] = useState(20);
+  const [savingKeyword, setSavingKeyword] = useState('');
+  const [savingLoading, setSavingLoading] = useState(false);
+  const [isSavingCreateOpen, setIsSavingCreateOpen] = useState(false);
+  const [isSavingEditOpen, setIsSavingEditOpen] = useState(false);
+  const [isSavingDeleteOpen, setIsSavingDeleteOpen] = useState(false);
+  const [selectedSaving, setSelectedSaving] = useState<TeamSaving | null>(null);
+  const [savingCreateForm, setSavingCreateForm] = useState({ team_name: '', traditional_minutes: 0, standard_minutes: 0, sort_order: 0 });
+  const [savingEditForm, setSavingEditForm] = useState({ team_name: '', traditional_minutes: 0, standard_minutes: 0, sort_order: 0 });
+
+  const handleLogout = () => {
+    localStorage.removeItem('admin_token');
+    setToken('');
+    setUsers([]);
+    setSavings([]);
+    setIsLoginOpen(true);
+  };
+
+  const handleLogin = async () => {
+    try {
+      const res = await fetch(`${API_BASE}/auth/login`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(loginForm),
+      });
+      const data = await res.json();
+      if (data.code === 0) {
+        localStorage.setItem('admin_token', data.data.token);
+        setToken(data.data.token);
+        setIsLoginOpen(false);
+      } else {
+        alert(data.message || '登录失败');
+      }
+    } catch {
+      alert('网络错误');
+    }
+  };
+
+  // User CRUD
+  const fetchUsers = useCallback(async () => {
+    if (!token) return;
+    setUserLoading(true);
+    try {
+      const res = await fetch(`${API_BASE}/users?page=${userPage}&page_size=${userPageSize}&keyword=${encodeURIComponent(userKeyword)}`, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      const data = await res.json();
+      if (data.code === 0) {
+        setUsers(data.data.list);
+        setUserTotal(data.data.total);
+      } else if (data.code === 401) {
+        handleLogout();
+      }
+    } catch (err) {
+      console.error(err);
+    } finally {
+      setUserLoading(false);
+    }
+  }, [token, userPage, userPageSize, userKeyword]);
+
+  useEffect(() => { fetchUsers(); }, [fetchUsers]);
+
+  const handleUserCreate = async () => {
+    try {
+      const res = await fetch(`${API_BASE}/users`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+        body: JSON.stringify(userCreateForm),
+      });
+      const data = await res.json();
+      if (data.code === 0) {
+        setIsUserCreateOpen(false);
+        setUserCreateForm({ username: '', email: '', password: '', nickname: '', phone: '', role: 'user' });
+        fetchUsers();
+      } else {
+        alert(data.message || '创建失败');
+      }
+    } catch {
+      alert('网络错误');
+    }
+  };
+
+  const handleUserEdit = async () => {
+    if (!selectedUser) return;
+    try {
+      const res = await fetch(`${API_BASE}/users/${selectedUser.id}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+        body: JSON.stringify(userEditForm),
+      });
+      const data = await res.json();
+      if (data.code === 0) {
+        setIsUserEditOpen(false);
+        setSelectedUser(null);
+        fetchUsers();
+      } else {
+        alert(data.message || '更新失败');
+      }
+    } catch {
+      alert('网络错误');
+    }
+  };
+
+  const handleUserDelete = async () => {
+    if (!selectedUser) return;
+    try {
+      const res = await fetch(`${API_BASE}/users/${selectedUser.id}`, {
+        method: 'DELETE',
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      const data = await res.json();
+      if (data.code === 0) {
+        setIsUserDeleteOpen(false);
+        setSelectedUser(null);
+        fetchUsers();
+      } else {
+        alert(data.message || '删除失败');
+      }
+    } catch {
+      alert('网络错误');
+    }
+  };
+
+  // TeamSaving CRUD
+  const fetchSavings = useCallback(async () => {
+    if (!token) return;
+    setSavingLoading(true);
+    try {
+      const res = await fetch(`${API_BASE}/team-savings?page=${savingPage}&page_size=${savingPageSize}&keyword=${encodeURIComponent(savingKeyword)}`, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      const data = await res.json();
+      if (data.code === 0) {
+        setSavings(data.data.list);
+        setSavingTotal(data.data.total);
+      } else if (data.code === 401) {
+        handleLogout();
+      }
+    } catch (err) {
+      console.error(err);
+    } finally {
+      setSavingLoading(false);
+    }
+  }, [token, savingPage, savingPageSize, savingKeyword]);
+
+  useEffect(() => { if (activeTab === 'team-savings') fetchSavings(); }, [fetchSavings, activeTab]);
+
+  const handleSavingCreate = async () => {
+    try {
+      const res = await fetch(`${API_BASE}/team-savings`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+        body: JSON.stringify(savingCreateForm),
+      });
+      const data = await res.json();
+      if (data.code === 0) {
+        setIsSavingCreateOpen(false);
+        setSavingCreateForm({ team_name: '', traditional_minutes: 0, standard_minutes: 0, sort_order: 0 });
+        fetchSavings();
+      } else {
+        alert(data.message || '创建失败');
+      }
+    } catch {
+      alert('网络错误');
+    }
+  };
+
+  const handleSavingEdit = async () => {
+    if (!selectedSaving) return;
+    try {
+      const res = await fetch(`${API_BASE}/team-savings/${selectedSaving.id}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+        body: JSON.stringify(savingEditForm),
+      });
+      const data = await res.json();
+      if (data.code === 0) {
+        setIsSavingEditOpen(false);
+        setSelectedSaving(null);
+        fetchSavings();
+      } else {
+        alert(data.message || '更新失败');
+      }
+    } catch {
+      alert('网络错误');
+    }
+  };
+
+  const handleSavingDelete = async () => {
+    if (!selectedSaving) return;
+    try {
+      const res = await fetch(`${API_BASE}/team-savings/${selectedSaving.id}`, {
+        method: 'DELETE',
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      const data = await res.json();
+      if (data.code === 0) {
+        setIsSavingDeleteOpen(false);
+        setSelectedSaving(null);
+        fetchSavings();
+      } else {
+        alert(data.message || '删除失败');
+      }
+    } catch {
+      alert('网络错误');
+    }
+  };
+
+  const openUserEdit = (user: User) => {
+    setSelectedUser(user);
+    setUserEditForm({ nickname: user.nickname, phone: user.phone, role: user.role, status: user.status });
+    setIsUserEditOpen(true);
+  };
+
+  const openUserDelete = (user: User) => {
+    setSelectedUser(user);
+    setIsUserDeleteOpen(true);
+  };
+
+  const openSavingEdit = (s: TeamSaving) => {
+    setSelectedSaving(s);
+    setSavingEditForm({ team_name: s.team_name, traditional_minutes: s.traditional_minutes, standard_minutes: s.standard_minutes, sort_order: s.sort_order });
+    setIsSavingEditOpen(true);
+  };
+
+  const openSavingDelete = (s: TeamSaving) => {
+    setSelectedSaving(s);
+    setIsSavingDeleteOpen(true);
+  };
+
+  const userTotalPages = Math.ceil(userTotal / userPageSize);
+  const savingTotalPages = Math.ceil(savingTotal / savingPageSize);
+
+  return (
+    <div className="min-h-screen flex flex-col" style={{ background: '#080e1a' }}>
+      <div className="scanline" />
+
+      {/* Login Dialog */}
+      <Dialog open={isLoginOpen} onOpenChange={setIsLoginOpen}>
+        <DialogContent className="bg-[#0f1629] border border-slate-700 text-white" showCloseButton={false}>
+          <DialogHeader>
+            <DialogTitle className="text-white">管理员登录</DialogTitle>
+            <DialogDescription className="text-slate-400">请输入管理员账号密码</DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4 py-4">
+            <div>
+              <label className="text-sm text-slate-400 mb-1 block">用户名/邮箱</label>
+              <Input value={loginForm.username} onChange={e => setLoginForm({ ...loginForm, username: e.target.value })} className="bg-[#1a2235] border-slate-700 text-white" placeholder="admin" />
+            </div>
+            <div>
+              <label className="text-sm text-slate-400 mb-1 block">密码</label>
+              <Input type="password" value={loginForm.password} onChange={e => setLoginForm({ ...loginForm, password: e.target.value })} className="bg-[#1a2235] border-slate-700 text-white" placeholder="admin123" />
+            </div>
+          </div>
+          <DialogFooter>
+            <Button onClick={handleLogin} className="bg-cyan-600 hover:bg-cyan-500 text-white">登录</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <main className="flex-1 p-6">
+        <div className="max-w-6xl mx-auto">
+          {/* Header */}
+          <div className="flex items-center justify-between mb-6">
+            <div className="flex items-center gap-3">
+              <div className="w-1 h-6 bg-cyan-400 rounded-full" />
+              <h2 className="text-white font-semibold text-xl">
+                {activeTab === 'users' ? '用户管理' : '团队节省时间数据'}
+              </h2>
+              <span className="text-slate-500 text-sm">
+                共 {activeTab === 'users' ? userTotal : savingTotal} 条
+              </span>
+            </div>
+            <div className="flex items-center gap-3">
+              <div className="flex bg-[#1a2235] rounded-md border border-slate-700 overflow-hidden">
+                <button
+                  onClick={() => setActiveTab('users')}
+                  className={`px-4 py-1.5 text-sm transition-colors ${activeTab === 'users' ? 'bg-cyan-600 text-white' : 'text-slate-400 hover:text-white'}`}
+                >
+                  用户管理
+                </button>
+                <button
+                  onClick={() => setActiveTab('team-savings')}
+                  className={`px-4 py-1.5 text-sm transition-colors ${activeTab === 'team-savings' ? 'bg-cyan-600 text-white' : 'text-slate-400 hover:text-white'}`}
+                >
+                  图表数据
+                </button>
+              </div>
+              <Button onClick={handleLogout} className="bg-red-600 hover:bg-red-500 text-white">登出</Button>
+            </div>
+          </div>
+
+          {/* User Management */}
+          {activeTab === 'users' && (
+            <>
+              <div className="flex items-center gap-3 mb-4">
+                <Input
+                  placeholder="搜索用户名/邮箱/昵称"
+                  value={userKeyword}
+                  onChange={e => setUserKeyword(e.target.value)}
+                  onKeyDown={e => e.key === 'Enter' && setUserPage(1)}
+                  className="w-64 bg-[#1a2235] border-slate-700 text-white placeholder:text-slate-500"
+                />
+                <Button onClick={() => setUserPage(1)} className="bg-slate-700 hover:bg-slate-600 text-white">搜索</Button>
+                <Button onClick={() => setIsUserCreateOpen(true)} className="bg-cyan-600 hover:bg-cyan-500 text-white">+ 新增用户</Button>
+              </div>
+
+              <div className="dashboard-card overflow-hidden">
+                <Table>
+                  <TableHeader>
+                    <TableRow className="border-slate-800 hover:bg-transparent">
+                      <TableHead className="text-slate-400">用户名</TableHead>
+                      <TableHead className="text-slate-400">邮箱</TableHead>
+                      <TableHead className="text-slate-400">昵称</TableHead>
+                      <TableHead className="text-slate-400">角色</TableHead>
+                      <TableHead className="text-slate-400">状态</TableHead>
+                      <TableHead className="text-slate-400">创建时间</TableHead>
+                      <TableHead className="text-slate-400">操作</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {userLoading ? (
+                      <TableRow><TableCell colSpan={7} className="text-center text-slate-500 py-8">加载中...</TableCell></TableRow>
+                    ) : users.length === 0 ? (
+                      <TableRow><TableCell colSpan={7} className="text-center text-slate-500 py-8">暂无数据</TableCell></TableRow>
+                    ) : (
+                      users.map(user => (
+                        <TableRow key={user.id} className="border-slate-800/60 hover:bg-[#111827]/50">
+                          <TableCell className="text-white font-medium">{user.username}</TableCell>
+                          <TableCell className="text-slate-300">{user.email}</TableCell>
+                          <TableCell className="text-slate-300">{user.nickname || '-'}</TableCell>
+                          <TableCell>
+                            <span className={`px-2 py-0.5 rounded text-xs font-medium ${
+                              user.role === 'admin' ? 'bg-purple-500/20 text-purple-300' :
+                              user.role === 'viewer' ? 'bg-slate-500/20 text-slate-300' :
+                              'bg-cyan-500/20 text-cyan-300'
+                            }`}>{user.role}</span>
+                          </TableCell>
+                          <TableCell>
+                            <span className={`px-2 py-0.5 rounded text-xs font-medium ${
+                              user.status === 1 ? 'bg-green-500/20 text-green-300' : 'bg-red-500/20 text-red-300'
+                            }`}>{user.status === 1 ? '启用' : '禁用'}</span>
+                          </TableCell>
+                          <TableCell className="text-slate-400 text-sm">{new Date(user.created_at).toLocaleDateString()}</TableCell>
+                          <TableCell>
+                            <div className="flex items-center gap-2">
+                              <button onClick={() => openUserEdit(user)} className="text-cyan-400 hover:text-cyan-300 text-sm">编辑</button>
+                              {user.role !== 'admin' && (
+                                <button onClick={() => openUserDelete(user)} className="text-red-400 hover:text-red-300 text-sm">删除</button>
+                              )}
+                            </div>
+                          </TableCell>
+                        </TableRow>
+                      ))
+                    )}
+                  </TableBody>
+                </Table>
+                {userTotalPages > 1 && (
+                  <div className="flex items-center justify-between px-4 py-3 border-t border-slate-800/60">
+                    <span className="text-slate-500 text-sm">第 {userPage} / {userTotalPages} 页</span>
+                    <div className="flex items-center gap-2">
+                      <Button variant="outline" size="sm" onClick={() => setUserPage(p => Math.max(1, p - 1))} disabled={userPage <= 1} className="border-slate-700 text-slate-300 hover:bg-slate-800">上一页</Button>
+                      <Button variant="outline" size="sm" onClick={() => setUserPage(p => Math.min(userTotalPages, p + 1))} disabled={userPage >= userTotalPages} className="border-slate-700 text-slate-300 hover:bg-slate-800">下一页</Button>
+                    </div>
+                  </div>
+                )}
+              </div>
+            </>
+          )}
+
+          {/* TeamSaving Management */}
+          {activeTab === 'team-savings' && (
+            <>
+              <div className="flex items-center gap-3 mb-4">
+                <Input
+                  placeholder="搜索团队名称"
+                  value={savingKeyword}
+                  onChange={e => setSavingKeyword(e.target.value)}
+                  onKeyDown={e => e.key === 'Enter' && setSavingPage(1)}
+                  className="w-64 bg-[#1a2235] border-slate-700 text-white placeholder:text-slate-500"
+                />
+                <Button onClick={() => setSavingPage(1)} className="bg-slate-700 hover:bg-slate-600 text-white">搜索</Button>
+                <Button onClick={() => setIsSavingCreateOpen(true)} className="bg-cyan-600 hover:bg-cyan-500 text-white">+ 新增数据</Button>
+              </div>
+
+              <div className="dashboard-card overflow-hidden">
+                <Table>
+                  <TableHeader>
+                    <TableRow className="border-slate-800 hover:bg-transparent">
+                      <TableHead className="text-slate-400">团队名称</TableHead>
+                      <TableHead className="text-slate-400">传统部署耗时（分钟）</TableHead>
+                      <TableHead className="text-slate-400">标准化部署耗时（分钟）</TableHead>
+                      <TableHead className="text-slate-400">节省时间（分钟）</TableHead>
+                      <TableHead className="text-slate-400">节省时间（小时）</TableHead>
+                      <TableHead className="text-slate-400">排序</TableHead>
+                      <TableHead className="text-slate-400">创建时间</TableHead>
+                      <TableHead className="text-slate-400">操作</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {savingLoading ? (
+                      <TableRow><TableCell colSpan={6} className="text-center text-slate-500 py-8">加载中...</TableCell></TableRow>
+                    ) : savings.length === 0 ? (
+                      <TableRow><TableCell colSpan={6} className="text-center text-slate-500 py-8">暂无数据</TableCell></TableRow>
+                    ) : (
+                      savings.map(s => (
+                        <TableRow key={s.id} className="border-slate-800/60 hover:bg-[#111827]/50">
+                          <TableCell className="text-white font-medium">{s.team_name}</TableCell>
+                          <TableCell className="text-amber-300 font-mono">{s.traditional_minutes}</TableCell>
+                          <TableCell className="text-green-300 font-mono">{s.standard_minutes}</TableCell>
+                          <TableCell className="text-cyan-300 font-mono">{s.minutes}</TableCell>
+                          <TableCell className="text-purple-300 font-mono">{s.hours.toFixed(2)}h</TableCell>
+                          <TableCell className="text-slate-300">{s.sort_order}</TableCell>
+                          <TableCell className="text-slate-400 text-sm">{new Date(s.created_at).toLocaleDateString()}</TableCell>
+                          <TableCell>
+                            <div className="flex items-center gap-2">
+                              <button onClick={() => openSavingEdit(s)} className="text-cyan-400 hover:text-cyan-300 text-sm">编辑</button>
+                              <button onClick={() => openSavingDelete(s)} className="text-red-400 hover:text-red-300 text-sm">删除</button>
+                            </div>
+                          </TableCell>
+                        </TableRow>
+                      ))
+                    )}
+                  </TableBody>
+                </Table>
+                {savingTotalPages > 1 && (
+                  <div className="flex items-center justify-between px-4 py-3 border-t border-slate-800/60">
+                    <span className="text-slate-500 text-sm">第 {savingPage} / {savingTotalPages} 页</span>
+                    <div className="flex items-center gap-2">
+                      <Button variant="outline" size="sm" onClick={() => setSavingPage(p => Math.max(1, p - 1))} disabled={savingPage <= 1} className="border-slate-700 text-slate-300 hover:bg-slate-800">上一页</Button>
+                      <Button variant="outline" size="sm" onClick={() => setSavingPage(p => Math.min(savingTotalPages, p + 1))} disabled={savingPage >= savingTotalPages} className="border-slate-700 text-slate-300 hover:bg-slate-800">下一页</Button>
+                    </div>
+                  </div>
+                )}
+              </div>
+            </>
+          )}
+        </div>
+      </main>
+
+      {/* User Create Dialog */}
+      <Dialog open={isUserCreateOpen} onOpenChange={setIsUserCreateOpen}>
+        <DialogContent className="bg-[#0f1629] border border-slate-700 text-white max-w-md">
+          <DialogHeader><DialogTitle className="text-white">新增用户</DialogTitle></DialogHeader>
+          <div className="space-y-3 py-2">
+            {['username', 'email', 'password', 'nickname', 'phone'].map(field => (
+              <div key={field}>
+                <label className="text-sm text-slate-400 mb-1 block">
+                  {field === 'username' ? '用户名' : field === 'email' ? '邮箱' : field === 'password' ? '密码' : field === 'nickname' ? '昵称' : '手机号'}
+                  {field !== 'nickname' && field !== 'phone' && <span className="text-red-400">*</span>}
+                </label>
+                <Input type={field === 'password' ? 'password' : 'text'} value={(userCreateForm as any)[field]} onChange={e => setUserCreateForm({ ...userCreateForm, [field]: e.target.value })} className="bg-[#1a2235] border-slate-700 text-white" />
+              </div>
+            ))}
+            <div>
+              <label className="text-sm text-slate-400 mb-1 block">角色</label>
+              <select value={userCreateForm.role} onChange={e => setUserCreateForm({ ...userCreateForm, role: e.target.value })} className="w-full h-9 rounded-md border border-slate-700 bg-[#1a2235] text-white px-3 text-sm">
+                <option value="user">user</option>
+                <option value="admin">admin</option>
+                <option value="viewer">viewer</option>
+              </select>
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setIsUserCreateOpen(false)} className="border-slate-700 text-slate-300">取消</Button>
+            <Button onClick={handleUserCreate} className="bg-cyan-600 hover:bg-cyan-500 text-white">创建</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* User Edit Dialog */}
+      <Dialog open={isUserEditOpen} onOpenChange={setIsUserEditOpen}>
+        <DialogContent className="bg-[#0f1629] border border-slate-700 text-white max-w-md">
+          <DialogHeader><DialogTitle className="text-white">编辑用户 - {selectedUser?.username}</DialogTitle></DialogHeader>
+          <div className="space-y-3 py-2">
+            <div><label className="text-sm text-slate-400 mb-1 block">昵称</label><Input value={userEditForm.nickname} onChange={e => setUserEditForm({ ...userEditForm, nickname: e.target.value })} className="bg-[#1a2235] border-slate-700 text-white" /></div>
+            <div><label className="text-sm text-slate-400 mb-1 block">手机号</label><Input value={userEditForm.phone} onChange={e => setUserEditForm({ ...userEditForm, phone: e.target.value })} className="bg-[#1a2235] border-slate-700 text-white" /></div>
+            <div>
+              <label className="text-sm text-slate-400 mb-1 block">角色</label>
+              <select value={userEditForm.role} onChange={e => setUserEditForm({ ...userEditForm, role: e.target.value })} className="w-full h-9 rounded-md border border-slate-700 bg-[#1a2235] text-white px-3 text-sm">
+                <option value="user">user</option><option value="admin">admin</option><option value="viewer">viewer</option>
+              </select>
+            </div>
+            <div>
+              <label className="text-sm text-slate-400 mb-1 block">状态</label>
+              <select value={userEditForm.status} onChange={e => setUserEditForm({ ...userEditForm, status: Number(e.target.value) })} className="w-full h-9 rounded-md border border-slate-700 bg-[#1a2235] text-white px-3 text-sm">
+                <option value={1}>启用</option><option value={0}>禁用</option>
+              </select>
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setIsUserEditOpen(false)} className="border-slate-700 text-slate-300">取消</Button>
+            <Button onClick={handleUserEdit} className="bg-cyan-600 hover:bg-cyan-500 text-white">保存</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* User Delete Dialog */}
+      <Dialog open={isUserDeleteOpen} onOpenChange={setIsUserDeleteOpen}>
+        <DialogContent className="bg-[#0f1629] border border-slate-700 text-white max-w-sm">
+          <DialogHeader>
+            <DialogTitle className="text-white">确认删除</DialogTitle>
+            <DialogDescription className="text-slate-400">确定要删除用户 <span className="text-red-400 font-medium">{selectedUser?.username}</span> 吗？此操作不可撤销。</DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setIsUserDeleteOpen(false)} className="border-slate-700 text-slate-300">取消</Button>
+            <Button onClick={handleUserDelete} className="bg-red-600 hover:bg-red-500 text-white">删除</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* TeamSaving Create Dialog */}
+      <Dialog open={isSavingCreateOpen} onOpenChange={setIsSavingCreateOpen}>
+        <DialogContent className="bg-[#0f1629] border border-slate-700 text-white max-w-md">
+          <DialogHeader><DialogTitle className="text-white">新增团队节省时间数据</DialogTitle></DialogHeader>
+          <div className="space-y-3 py-2">
+            <div>
+              <label className="text-sm text-slate-400 mb-1 block">团队名称 <span className="text-red-400">*</span></label>
+              <Input value={savingCreateForm.team_name} onChange={e => setSavingCreateForm({ ...savingCreateForm, team_name: e.target.value })} className="bg-[#1a2235] border-slate-700 text-white" />
+            </div>
+            <div>
+              <label className="text-sm text-slate-400 mb-1 block">传统部署AI开发环境耗时（分钟） <span className="text-red-400">*</span></label>
+              <Input type="number" step="0.1" value={savingCreateForm.traditional_minutes || ''} onChange={e => setSavingCreateForm({ ...savingCreateForm, traditional_minutes: Number(e.target.value) })} className="bg-[#1a2235] border-slate-700 text-white" />
+            </div>
+            <div>
+              <label className="text-sm text-slate-400 mb-1 block">标准化AI开发环境耗时（分钟） <span className="text-red-400">*</span></label>
+              <Input type="number" step="0.1" value={savingCreateForm.standard_minutes || ''} onChange={e => setSavingCreateForm({ ...savingCreateForm, standard_minutes: Number(e.target.value) })} className="bg-[#1a2235] border-slate-700 text-white" />
+            </div>
+            <div>
+              <label className="text-sm text-slate-400 mb-1 block">排序 <span className="text-slate-500">（数字越小越靠前）</span></label>
+              <Input type="number" value={savingCreateForm.sort_order} onChange={e => setSavingCreateForm({ ...savingCreateForm, sort_order: Number(e.target.value) })} className="bg-[#1a2235] border-slate-700 text-white" />
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setIsSavingCreateOpen(false)} className="border-slate-700 text-slate-300">取消</Button>
+            <Button onClick={handleSavingCreate} className="bg-cyan-600 hover:bg-cyan-500 text-white">创建</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* TeamSaving Edit Dialog */}
+      <Dialog open={isSavingEditOpen} onOpenChange={setIsSavingEditOpen}>
+        <DialogContent className="bg-[#0f1629] border border-slate-700 text-white max-w-md">
+          <DialogHeader><DialogTitle className="text-white">编辑团队数据 - {selectedSaving?.team_name}</DialogTitle></DialogHeader>
+          <div className="space-y-3 py-2">
+            <div><label className="text-sm text-slate-400 mb-1 block">团队名称</label><Input value={savingEditForm.team_name} onChange={e => setSavingEditForm({ ...savingEditForm, team_name: e.target.value })} className="bg-[#1a2235] border-slate-700 text-white" /></div>
+            <div><label className="text-sm text-slate-400 mb-1 block">传统部署AI开发环境耗时（分钟）</label><Input type="number" step="0.1" value={savingEditForm.traditional_minutes || ''} onChange={e => setSavingEditForm({ ...savingEditForm, traditional_minutes: Number(e.target.value) })} className="bg-[#1a2235] border-slate-700 text-white" /></div>
+            <div><label className="text-sm text-slate-400 mb-1 block">标准化AI开发环境耗时（分钟）</label><Input type="number" step="0.1" value={savingEditForm.standard_minutes || ''} onChange={e => setSavingEditForm({ ...savingEditForm, standard_minutes: Number(e.target.value) })} className="bg-[#1a2235] border-slate-700 text-white" /></div>
+            <div><label className="text-sm text-slate-400 mb-1 block">排序</label><Input type="number" value={savingEditForm.sort_order} onChange={e => setSavingEditForm({ ...savingEditForm, sort_order: Number(e.target.value) })} className="bg-[#1a2235] border-slate-700 text-white" /></div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setIsSavingEditOpen(false)} className="border-slate-700 text-slate-300">取消</Button>
+            <Button onClick={handleSavingEdit} className="bg-cyan-600 hover:bg-cyan-500 text-white">保存</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* TeamSaving Delete Dialog */}
+      <Dialog open={isSavingDeleteOpen} onOpenChange={setIsSavingDeleteOpen}>
+        <DialogContent className="bg-[#0f1629] border border-slate-700 text-white max-w-sm">
+          <DialogHeader>
+            <DialogTitle className="text-white">确认删除</DialogTitle>
+            <DialogDescription className="text-slate-400">确定要删除 <span className="text-red-400 font-medium">{selectedSaving?.team_name}</span> 的数据吗？此操作不可撤销。</DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setIsSavingDeleteOpen(false)} className="border-slate-700 text-slate-300">取消</Button>
+            <Button onClick={handleSavingDelete} className="bg-red-600 hover:bg-red-500 text-white">删除</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+    </div>
+  );
+};
