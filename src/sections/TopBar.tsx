@@ -1,17 +1,32 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 
-const announcements = [
-  '📊 部署平均耗时 2.3min，较上周提升 15%',
-  '🏆 恭喜 前端团队 夺得本周 AI 使用冠军！',
-  '🎉 万泽宇 今日 Token 使用突破 50,000！',
-  '📈 部门整体 AI 采用率达到 78%',
-  '🔥 本周 PR 硅含量平均 42%',
-  '⚡ 部署平均耗时 2.3min，较上周提升 15%',
-];
+const API_BASE = 'http://47.103.58.81:8082/api/v1';
+
+interface SiliconStats {
+  total_members: number;
+  overall_silicon_pct: number;
+  role_distribution?: { role_category: string; avg_silicon_pct: number; count: number }[];
+}
+
+interface TeamSaving {
+  team_name: string;
+  minutes: number;
+  hours: number;
+}
+
+interface TokenUsage {
+  total_tokens: number;
+  username: string;
+  role_category: string;
+}
 
 export const TopBar: React.FC = () => {
   const [time, setTime] = useState(new Date());
+  const [announcements, setAnnouncements] = useState<string[]>([
+    '📊 正在加载实时数据...',
+    '⚡ AI-Native 效能看板运行中',
+  ]);
   const navigate = useNavigate();
   const location = useLocation();
   const isAdmin = location.pathname === '/admin';
@@ -21,9 +36,84 @@ export const TopBar: React.FC = () => {
     return () => clearInterval(t);
   }, []);
 
+  const fetchTickerData = useCallback(async () => {
+    try {
+      const [siliconRes, savingsRes, tokenRes] = await Promise.all([
+        fetch(`${API_BASE}/silicon-contents/stats`).catch(() => null),
+        fetch(`${API_BASE}/team-savings/all`).catch(() => null),
+        fetch(`${API_BASE}/token-usages/all`).catch(() => null),
+      ]);
+
+      const msgs: string[] = [];
+
+      // 硅含量数据
+      if (siliconRes) {
+        const siliconData = await siliconRes.json();
+        if (siliconData.code === 0) {
+          const stats: SiliconStats = siliconData.data;
+          msgs.push(`🔬 全员硅含量 ${stats.overall_silicon_pct.toFixed(1)}%，${stats.total_members} 人参与`);
+          if (stats.role_distribution) {
+            const topRole = stats.role_distribution.reduce((a, b) =>
+              a.avg_silicon_pct > b.avg_silicon_pct ? a : b
+            );
+            msgs.push(`🏆 ${topRole.role_category} 平均硅含量最高 ${topRole.avg_silicon_pct.toFixed(1)}%（${topRole.count} 人）`);
+          }
+        }
+      }
+
+      // 节省时间数据
+      if (savingsRes) {
+        const savingsData = await savingsRes.json();
+        if (savingsData.code === 0) {
+          const teams: TeamSaving[] = savingsData.data || [];
+          const totalMin = teams.reduce((s, t) => s + t.minutes, 0);
+          const totalH = (totalMin / 60).toFixed(1);
+          msgs.push(`⏱️ 标准化部署累计节省 ${totalH} 小时，${teams.length} 个团队受益`);
+          const topTeam = teams.reduce((a, b) => (a.minutes > b.minutes ? a : b), teams[0]);
+          if (topTeam) {
+            msgs.push(`🚀 ${topTeam.team_name} 节省最多 ${topTeam.minutes} 分钟（${topTeam.hours.toFixed(2)}h）`);
+          }
+        }
+      }
+
+      // Token 数据
+      if (tokenRes) {
+        const tokenData = await tokenRes.json();
+        if (tokenData.code === 0) {
+          const items: TokenUsage[] = tokenData.data || [];
+          const totalTokens = items.reduce((s, t) => s + (t.total_tokens || 0), 0);
+          const fmt = (n: number) => {
+            if (n >= 1e6) return `${(n / 1e6).toFixed(1)}M`;
+            if (n >= 1e3) return `${(n / 1e3).toFixed(0)}K`;
+            return String(n);
+          };
+          msgs.push(`🤖 Token 总使用量 ${fmt(totalTokens)}，${items.length} 人参与`);
+          if (items.length > 0) {
+            const top = items[0];
+            msgs.push(`👑 ${top.username} 位居 Token 榜首（${fmt(top.total_tokens)}）`);
+          }
+        }
+      }
+
+      if (msgs.length > 0) {
+        setAnnouncements(msgs);
+      }
+    } catch (err) {
+      console.error('Ticker fetch error:', err);
+    }
+  }, []);
+
+  useEffect(() => {
+    fetchTickerData();
+    const timer = setInterval(fetchTickerData, 60000);
+    return () => clearInterval(timer);
+  }, [fetchTickerData]);
+
   const pad = (n: number) => String(n).padStart(2, '0');
   const timeStr = `${pad(time.getHours())}:${pad(time.getMinutes())}:${pad(time.getSeconds())}`;
   const dateStr = `${time.getFullYear()}/${pad(time.getMonth() + 1)}/${pad(time.getDate())}`;
+
+  const tickerItems = [...announcements, ...announcements, ...announcements];
 
   return (
     <header className="relative z-10">
@@ -73,7 +163,7 @@ export const TopBar: React.FC = () => {
       {/* Ticker/Marquee */}
       <div className="w-full overflow-hidden py-2 border-b border-slate-800/40" style={{ background: 'linear-gradient(90deg, rgba(0,212,255,0.05) 0%, rgba(0,212,255,0.1) 50%, rgba(0,212,255,0.05) 100%)' }}>
         <div className="whitespace-nowrap animate-marquee flex items-center gap-8">
-          {[...announcements, ...announcements].map((msg, idx) => (
+          {tickerItems.map((msg, idx) => (
             <span key={idx} className="text-sm text-cyan-300/80 flex items-center gap-2">
               <span className="w-1.5 h-1.5 rounded-full bg-cyan-400 animate-pulse" />
               {msg}
