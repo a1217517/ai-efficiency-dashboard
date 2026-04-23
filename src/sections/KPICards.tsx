@@ -19,7 +19,14 @@ interface TeamSaving {
   hours: number;
 }
 
-const formatLines = (n: number): string => {
+
+interface TokenUsageItem {
+  total_tokens: number;
+  username: string;
+  role_category: string;
+}
+
+const formatTokens = (n: number): string => {
   if (n >= 1_000_000) return `${(n / 1_000_000).toFixed(2)}M`;
   if (n >= 1_000) return `${(n / 1_000).toFixed(1)}K`;
   return n.toString();
@@ -28,21 +35,27 @@ const formatLines = (n: number): string => {
 export const KPICards: React.FC = () => {
   const [siliconStats, setSiliconStats] = useState<SiliconStats | null>(null);
   const [teamSavings, setTeamSavings] = useState<TeamSaving[]>([]);
+  const [tokenUsages, setTokenUsages] = useState<TokenUsageItem[]>([]);
 
   const fetchStats = useCallback(async () => {
     try {
-      const [siliconRes, savingsRes] = await Promise.all([
+      const [siliconRes, savingsRes, tokenRes] = await Promise.all([
         fetch(`${API_BASE}/silicon-contents/stats`),
         fetch(`${API_BASE}/team-savings/all`),
+        fetch(`${API_BASE}/token-usages/all`),
       ]);
       const siliconData = await siliconRes.json();
       const savingsData = await savingsRes.json();
+      const tokenData = await tokenRes.json();
 
       if (siliconData.code === 0) {
         setSiliconStats(siliconData.data);
       }
       if (savingsData.code === 0) {
         setTeamSavings(savingsData.data || []);
+      }
+      if (tokenData.code === 0) {
+        setTokenUsages(tokenData.data || []);
       }
     } catch (err) {
       console.error(err);
@@ -63,6 +76,8 @@ export const KPICards: React.FC = () => {
       ? `${totalSavedHours.toFixed(1)}h`
       : `${totalSavedMinutes}min`;
 
+  const totalTokens = tokenUsages.reduce((s, t) => s + (t.total_tokens || 0), 0);
+
   const kpiData = [
     {
       label: '整体硅含量',
@@ -74,11 +89,11 @@ export const KPICards: React.FC = () => {
       glow: 'rgba(0,212,255,0.5)',
     },
     {
-      label: '今日 TOKEN 总量',
-      value: '1.2M',
-      change: '+8%',
+      label: 'Token 使用量',
+      value: tokenUsages.length > 0 ? formatTokens(totalTokens) : '--',
+      change: tokenUsages.length > 0 ? `${tokenUsages.length} 人参与` : '',
       changeType: 'up' as const,
-      subLabel: '较昨日',
+      subLabel: '累计统计',
       color: 'blue' as const,
       glow: 'rgba(59,130,246,0.5)',
     },
