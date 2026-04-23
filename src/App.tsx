@@ -22,10 +22,10 @@ function Dashboard() {
       }}>
         {/* Row 1 */}
         <div style={{ gridRow: '1 / 2', gridColumn: '1 / 2' }}>
-          <TokenRanking />
+          <PRSiliconChart />
         </div>
         <div style={{ gridRow: '1 / 2', gridColumn: '2 / 3' }}>
-          <PRSiliconChart />
+          <TokenRanking />
         </div>
         <div style={{ gridRow: '1 / 2', gridColumn: '3 / 4' }}>
           <TeamAIUsageChart />

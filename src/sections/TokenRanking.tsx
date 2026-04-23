@@ -139,7 +139,6 @@ export const TokenRanking: React.FC = () => {
         <div className="flex items-center gap-1.5">
           <div className="w-1.5 h-1.5 rounded-full bg-green-400 animate-pulse" />
           <span className="text-green-400 text-xs font-mono">LIVE</span>
-          <span className="text-slate-600 text-xs ml-2">60s 刷新</span>
         </div>
       </div>
 
