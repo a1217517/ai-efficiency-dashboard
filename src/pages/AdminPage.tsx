@@ -47,6 +47,17 @@ interface TokenUsage {
   created_at: string;
 }
 
+interface SiliconContent {
+  id: string;
+  rank: number;
+  username: string;
+  role_category: string;
+  silicon_percentage: number;
+  ai_lines: number;
+  total_lines: number;
+  created_at: string;
+}
+
 interface ImportResult {
   success_count: number;
   fail_count: number;
@@ -62,7 +73,7 @@ const formatTokens = (n: number): string => {
 };
 
 export const AdminPage: React.FC = () => {
-  const [activeTab, setActiveTab] = useState<'users' | 'team-savings' | 'token-usages'>('users');
+  const [activeTab, setActiveTab] = useState<'users' | 'team-savings' | 'token-usages' | 'silicon-contents'>('users');
   const [token, setToken] = useState(localStorage.getItem('admin_token') || '');
   const [isLoginOpen, setIsLoginOpen] = useState(!token);
   const [loginForm, setLoginForm] = useState({ username: '', password: '' });
@@ -111,12 +122,27 @@ export const AdminPage: React.FC = () => {
   const [isImportResultOpen, setIsImportResultOpen] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
+  // SiliconContent states
+  const [siliconContents, setSiliconContents] = useState<SiliconContent[]>([]);
+  const [siliconTotal, setSiliconTotal] = useState(0);
+  const [siliconPage, setSiliconPage] = useState(1);
+  const [siliconPageSize] = useState(20);
+  const [siliconKeyword, setSiliconKeyword] = useState('');
+  const [siliconLoading, setSiliconLoading] = useState(false);
+  const [isSiliconImportOpen, setIsSiliconImportOpen] = useState(false);
+  const [siliconImportFile, setSiliconImportFile] = useState<File | null>(null);
+  const [siliconImportLoading, setSiliconImportLoading] = useState(false);
+  const [siliconImportResult, setSiliconImportResult] = useState<ImportResult | null>(null);
+  const [isSiliconImportResultOpen, setIsSiliconImportResultOpen] = useState(false);
+  const siliconFileInputRef = useRef<HTMLInputElement>(null);
+
   const handleLogout = () => {
     localStorage.removeItem('admin_token');
     setToken('');
     setUsers([]);
     setSavings([]);
     setTokenUsages([]);
+    setSiliconContents([]);
     setIsLoginOpen(true);
   };
 
@@ -433,6 +459,82 @@ export const AdminPage: React.FC = () => {
   const userTotalPages = Math.ceil(userTotal / userPageSize);
   const savingTotalPages = Math.ceil(savingTotal / savingPageSize);
   const tokenUsageTotalPages = Math.ceil(tokenUsageTotal / tokenUsagePageSize);
+  const siliconTotalPages = Math.ceil(siliconTotal / siliconPageSize);
+
+  // SiliconContent CRUD
+  const fetchSiliconContents = useCallback(async () => {
+    if (!token) return;
+    setSiliconLoading(true);
+    try {
+      const res = await fetch(`${API_BASE}/silicon-contents?page=${siliconPage}&page_size=${siliconPageSize}&keyword=${encodeURIComponent(siliconKeyword)}`, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      const data = await res.json();
+      if (data.code === 0) {
+        setSiliconContents(data.data.list);
+        setSiliconTotal(data.data.total);
+      } else if (data.code === 401) {
+        handleLogout();
+      }
+    } catch (err) {
+      console.error(err);
+    } finally {
+      setSiliconLoading(false);
+    }
+  }, [token, siliconPage, siliconPageSize, siliconKeyword]);
+
+  useEffect(() => {
+    if (activeTab === 'silicon-contents') fetchSiliconContents();
+  }, [fetchSiliconContents, activeTab]);
+
+  const handleSiliconImport = async () => {
+    if (!siliconImportFile) {
+      alert('请选择文件');
+      return;
+    }
+    setSiliconImportLoading(true);
+    try {
+      const formData = new FormData();
+      formData.append('file', siliconImportFile);
+      const res = await fetch(`${API_BASE}/silicon-contents/import`, {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${token}` },
+        body: formData,
+      });
+      const data = await res.json();
+      if (data.code === 0) {
+        setSiliconImportResult(data.data);
+        setIsSiliconImportOpen(false);
+        setSiliconImportFile(null);
+        setIsSiliconImportResultOpen(true);
+        fetchSiliconContents();
+      } else {
+        alert(data.message || '导入失败');
+      }
+    } catch {
+      alert('网络错误');
+    } finally {
+      setSiliconImportLoading(false);
+    }
+  };
+
+  const handleSiliconDelete = async (id: string) => {
+    if (!confirm('确定要删除这条记录吗？')) return;
+    try {
+      const res = await fetch(`${API_BASE}/silicon-contents/${id}`, {
+        method: 'DELETE',
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      const data = await res.json();
+      if (data.code === 0) {
+        fetchSiliconContents();
+      } else {
+        alert(data.message || '删除失败');
+      }
+    } catch {
+      alert('网络错误');
+    }
+  };
 
   return (
     <div className="min-h-screen flex flex-col" style={{ background: '#080e1a' }}>
@@ -468,10 +570,10 @@ export const AdminPage: React.FC = () => {
             <div className="flex items-center gap-3">
               <div className="w-1 h-6 bg-cyan-400 rounded-full" />
               <h2 className="text-white font-semibold text-xl">
-                {activeTab === 'users' ? '用户管理' : activeTab === 'team-savings' ? '团队节省时间数据' : 'Token 使用量数据'}
+                {activeTab === 'users' ? '用户管理' : activeTab === 'team-savings' ? '团队节省时间数据' : activeTab === 'token-usages' ? 'Token 使用量数据' : '硅含量数据'}
               </h2>
               <span className="text-slate-500 text-sm">
-                共 {activeTab === 'users' ? userTotal : activeTab === 'team-savings' ? savingTotal : tokenUsageTotal} 条
+                共 {activeTab === 'users' ? userTotal : activeTab === 'team-savings' ? savingTotal : activeTab === 'token-usages' ? tokenUsageTotal : siliconTotal} 条
               </span>
             </div>
             <div className="flex items-center gap-3">
@@ -493,6 +595,12 @@ export const AdminPage: React.FC = () => {
                   className={`px-4 py-1.5 text-sm transition-colors ${activeTab === 'token-usages' ? 'bg-cyan-600 text-white' : 'text-slate-400 hover:text-white'}`}
                 >
                   Token 数据
+                </button>
+                <button
+                  onClick={() => setActiveTab('silicon-contents')}
+                  className={`px-4 py-1.5 text-sm transition-colors ${activeTab === 'silicon-contents' ? 'bg-cyan-600 text-white' : 'text-slate-400 hover:text-white'}`}
+                >
+                  硅含量
                 </button>
               </div>
               <Button onClick={handleLogout} className="bg-red-600 hover:bg-red-500 text-white">登出</Button>
@@ -729,8 +837,153 @@ export const AdminPage: React.FC = () => {
               </div>
             </>
           )}
+          {/* SiliconContent Management */}
+          {activeTab === 'silicon-contents' && (
+            <>
+              <div className="flex items-center gap-3 mb-4">
+                <Input
+                  placeholder="搜索用户名"
+                  value={siliconKeyword}
+                  onChange={e => setSiliconKeyword(e.target.value)}
+                  onKeyDown={e => e.key === 'Enter' && setSiliconPage(1)}
+                  className="w-48 bg-[#1a2235] border-slate-700 text-white placeholder:text-slate-500"
+                />
+                <Button onClick={() => setSiliconPage(1)} className="bg-slate-700 hover:bg-slate-600 text-white">搜索</Button>
+                <Button onClick={() => setIsSiliconImportOpen(true)} className="bg-cyan-600 hover:bg-cyan-500 text-white">📥 导入 Excel</Button>
+              </div>
+
+              <div className="dashboard-card overflow-hidden">
+                <Table>
+                  <TableHeader>
+                    <TableRow className="border-slate-800 hover:bg-transparent">
+                      <TableHead className="text-slate-400">排名</TableHead>
+                      <TableHead className="text-slate-400">用户名</TableHead>
+                      <TableHead className="text-slate-400">职类</TableHead>
+                      <TableHead className="text-slate-400">硅基含量</TableHead>
+                      <TableHead className="text-slate-400">AI 代码量</TableHead>
+                      <TableHead className="text-slate-400">总代码量</TableHead>
+                      <TableHead className="text-slate-400">操作</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {siliconLoading ? (
+                      <TableRow><TableCell colSpan={7} className="text-center text-slate-500 py-8">加载中...</TableCell></TableRow>
+                    ) : siliconContents.length === 0 ? (
+                      <TableRow><TableCell colSpan={7} className="text-center text-slate-500 py-8">暂无数据，请先导入 Excel</TableCell></TableRow>
+                    ) : (
+                      siliconContents.map(item => (
+                        <TableRow key={item.id} className="border-slate-800/60 hover:bg-[#111827]/50">
+                          <TableCell className="text-white font-mono font-medium">{item.rank}</TableCell>
+                          <TableCell className="text-white font-medium">{item.username}</TableCell>
+                          <TableCell>
+                            <span className={`px-2 py-0.5 rounded text-xs font-medium ${
+                              item.role_category === '开发类' ? 'bg-blue-500/20 text-blue-300' :
+                              item.role_category === '测试类' ? 'bg-green-500/20 text-green-300' :
+                              item.role_category === '管理类' ? 'bg-purple-500/20 text-purple-300' :
+                              item.role_category === '安全类' ? 'bg-red-500/20 text-red-300' :
+                              'bg-slate-500/20 text-slate-300'
+                            }`}>{item.role_category}</span>
+                          </TableCell>
+                          <TableCell className="text-cyan-300 font-mono">{item.silicon_percentage.toFixed(2)}%</TableCell>
+                          <TableCell className="text-slate-300 font-mono">{item.ai_lines.toLocaleString()}</TableCell>
+                          <TableCell className="text-slate-300 font-mono">{item.total_lines.toLocaleString()}</TableCell>
+                          <TableCell>
+                            <button onClick={() => handleSiliconDelete(item.id)} className="text-red-400 hover:text-red-300 text-sm">删除</button>
+                          </TableCell>
+                        </TableRow>
+                      ))
+                    )}
+                  </TableBody>
+                </Table>
+                {siliconTotalPages > 1 && (
+                  <div className="flex items-center justify-between px-4 py-3 border-t border-slate-800/60">
+                    <span className="text-slate-500 text-sm">第 {siliconPage} / {siliconTotalPages} 页</span>
+                    <div className="flex items-center gap-2">
+                      <Button variant="outline" size="sm" onClick={() => setSiliconPage(p => Math.max(1, p - 1))} disabled={siliconPage <= 1} className="border-slate-700 text-slate-300 hover:bg-slate-800">上一页</Button>
+                      <Button variant="outline" size="sm" onClick={() => setSiliconPage(p => Math.min(siliconTotalPages, p + 1))} disabled={siliconPage >= siliconTotalPages} className="border-slate-700 text-slate-300 hover:bg-slate-800">下一页</Button>
+                    </div>
+                  </div>
+                )}
+              </div>
+            </>
+          )}
         </div>
       </main>
+
+      {/* Silicon Import Dialog */}
+      <Dialog open={isSiliconImportOpen} onOpenChange={setIsSiliconImportOpen}>
+        <DialogContent className="bg-[#0f1629] border border-slate-700 text-white max-w-md">
+          <DialogHeader>
+            <DialogTitle className="text-white">导入硅含量数据</DialogTitle>
+            <DialogDescription className="text-slate-400">
+              上传 Excel 文件（.xlsx），要求包含列：排名、用户名、职类、硅基含量、硅基代码量、总代码量
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4 py-4">
+            <div
+              className="border-2 border-dashed border-slate-700 rounded-lg p-6 text-center cursor-pointer hover:border-cyan-500/50 transition-colors"
+              onClick={() => siliconFileInputRef.current?.click()}
+            >
+              <input
+                ref={siliconFileInputRef}
+                type="file"
+                accept=".xlsx"
+                className="hidden"
+                onChange={e => setSiliconImportFile(e.target.files?.[0] || null)}
+              />
+              {siliconImportFile ? (
+                <div className="space-y-1">
+                  <div className="text-cyan-400 font-medium">{siliconImportFile.name}</div>
+                  <div className="text-slate-500 text-sm">{(siliconImportFile.size / 1024).toFixed(1)} KB</div>
+                </div>
+              ) : (
+                <div className="space-y-1">
+                  <div className="text-slate-400">点击选择或拖拽 Excel 文件</div>
+                  <div className="text-slate-600 text-sm">支持 .xlsx 格式</div>
+                </div>
+              )}
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => { setIsSiliconImportOpen(false); setSiliconImportFile(null); }} className="border-slate-700 text-slate-300">取消</Button>
+            <Button onClick={handleSiliconImport} disabled={!siliconImportFile || siliconImportLoading} className="bg-cyan-600 hover:bg-cyan-500 text-white">
+              {siliconImportLoading ? '导入中...' : '导入'}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Silicon Import Result Dialog */}
+      <Dialog open={isSiliconImportResultOpen} onOpenChange={setIsSiliconImportResultOpen}>
+        <DialogContent className="bg-[#0f1629] border border-slate-700 text-white max-w-md">
+          <DialogHeader>
+            <DialogTitle className="text-white">导入结果</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-3 py-2">
+            <div className="flex items-center gap-4">
+              <div className="text-center">
+                <div className="text-green-400 text-2xl font-bold">{siliconImportResult?.success_count || 0}</div>
+                <div className="text-slate-500 text-sm">成功</div>
+              </div>
+              <div className="text-center">
+                <div className="text-red-400 text-2xl font-bold">{siliconImportResult?.fail_count || 0}</div>
+                <div className="text-slate-500 text-sm">失败</div>
+              </div>
+            </div>
+            {siliconImportResult && siliconImportResult.errors && siliconImportResult.errors.length > 0 && (
+              <div className="bg-red-500/10 border border-red-500/30 rounded-lg p-3 max-h-40 overflow-y-auto">
+                <div className="text-red-400 text-sm font-medium mb-2">错误详情：</div>
+                {siliconImportResult.errors.map((err, i) => (
+                  <div key={i} className="text-red-300 text-xs">{err}</div>
+                ))}
+              </div>
+            )}
+          </div>
+          <DialogFooter>
+            <Button onClick={() => setIsSiliconImportResultOpen(false)} className="bg-cyan-600 hover:bg-cyan-500 text-white">确定</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
       {/* Import Dialog */}
       <Dialog open={isImportOpen} onOpenChange={setIsImportOpen}>

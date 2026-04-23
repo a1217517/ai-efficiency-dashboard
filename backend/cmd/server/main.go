@@ -27,12 +27,15 @@ func main() {
 	userRepo := repository.NewUserRepository(db)
 	teamSavingRepo := repository.NewTeamSavingRepository(db)
 	tokenUsageRepo := repository.NewTokenUsageRepository(db)
+	siliconContentRepo := repository.NewSiliconContentRepository(db)
 	userService := service.NewUserService(userRepo)
 	teamSavingService := service.NewTeamSavingService(teamSavingRepo)
 	tokenUsageService := service.NewTokenUsageService(tokenUsageRepo)
+	siliconContentService := service.NewSiliconContentService(siliconContentRepo)
 	userHandler := handler.NewUserHandler(userService)
 	teamSavingHandler := handler.NewTeamSavingHandler(teamSavingService)
 	tokenUsageHandler := handler.NewTokenUsageHandler(tokenUsageService)
+	siliconContentHandler := handler.NewSiliconContentHandler(siliconContentService)
 
 	authHandler := handler.NewAuthHandler(userService, cfg.JWT)
 
@@ -55,6 +58,8 @@ func main() {
 
 		// Token 使用量 - 公开接口
 		api.GET("/token-usages/all", tokenUsageHandler.ListAll)
+		api.GET("/silicon-contents/all", siliconContentHandler.ListAll)
+		api.GET("/silicon-contents/stats", siliconContentHandler.Stats)
 
 		auth := api.Group("/")
 		auth.Use(middleware.JWTAuth(cfg.JWT.Secret))
@@ -78,6 +83,14 @@ func main() {
 			auth.PUT("/token-usages/:id", tokenUsageHandler.Update)
 			auth.DELETE("/token-usages/:id", tokenUsageHandler.Delete)
 			auth.POST("/token-usages/import", tokenUsageHandler.ImportExcel)
+
+			// 硅含量管理
+			auth.GET("/silicon-contents", siliconContentHandler.List)
+			auth.GET("/silicon-contents/:id", siliconContentHandler.GetByID)
+			auth.POST("/silicon-contents", siliconContentHandler.Create)
+			auth.PUT("/silicon-contents/:id", siliconContentHandler.Update)
+			auth.DELETE("/silicon-contents/:id", siliconContentHandler.Delete)
+			auth.POST("/silicon-contents/import", siliconContentHandler.ImportExcel)
 		}
 	}
 
