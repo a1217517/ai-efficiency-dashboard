@@ -10,6 +10,15 @@ interface SiliconStats {
   overall_silicon_pct: number;
 }
 
+interface TeamSaving {
+  id: string;
+  team_name: string;
+  traditional_minutes: number;
+  standard_minutes: number;
+  minutes: number;
+  hours: number;
+}
+
 const formatLines = (n: number): string => {
   if (n >= 1_000_000) return `${(n / 1_000_000).toFixed(2)}M`;
   if (n >= 1_000) return `${(n / 1_000).toFixed(1)}K`;
@@ -18,19 +27,25 @@ const formatLines = (n: number): string => {
 
 export const KPICards: React.FC = () => {
   const [siliconStats, setSiliconStats] = useState<SiliconStats | null>(null);
-  const [loading, setLoading] = useState(true);
+  const [teamSavings, setTeamSavings] = useState<TeamSaving[]>([]);
 
   const fetchStats = useCallback(async () => {
     try {
-      const res = await fetch(`${API_BASE}/silicon-contents/stats`);
-      const data = await res.json();
-      if (data.code === 0) {
-        setSiliconStats(data.data);
+      const [siliconRes, savingsRes] = await Promise.all([
+        fetch(`${API_BASE}/silicon-contents/stats`),
+        fetch(`${API_BASE}/team-savings/all`),
+      ]);
+      const siliconData = await siliconRes.json();
+      const savingsData = await savingsRes.json();
+
+      if (siliconData.code === 0) {
+        setSiliconStats(siliconData.data);
+      }
+      if (savingsData.code === 0) {
+        setTeamSavings(savingsData.data || []);
       }
     } catch (err) {
       console.error(err);
-    } finally {
-      setLoading(false);
     }
   }, []);
 
@@ -39,6 +54,14 @@ export const KPICards: React.FC = () => {
     const timer = setInterval(fetchStats, 60000);
     return () => clearInterval(timer);
   }, [fetchStats]);
+
+  const totalSavedMinutes = teamSavings.reduce((s, t) => s + t.minutes, 0);
+  const totalSavedHours = totalSavedMinutes / 60;
+  const savedDisplay = totalSavedHours >= 100
+    ? `${totalSavedHours.toFixed(0)}h`
+    : totalSavedHours >= 1
+      ? `${totalSavedHours.toFixed(1)}h`
+      : `${totalSavedMinutes}min`;
 
   const kpiData = [
     {
@@ -60,11 +83,11 @@ export const KPICards: React.FC = () => {
       glow: 'rgba(59,130,246,0.5)',
     },
     {
-      label: 'AI 采用率',
-      value: '56%',
-      change: '+5%',
+      label: '累计节省时间',
+      value: teamSavings.length > 0 ? savedDisplay : '--',
+      change: teamSavings.length > 0 ? `${teamSavings.length} 个团队` : '',
       changeType: 'up' as const,
-      subLabel: '较上周',
+      subLabel: '标准化部署收益',
       color: 'emerald' as const,
       glow: 'rgba(16,185,129,0.5)',
     },
