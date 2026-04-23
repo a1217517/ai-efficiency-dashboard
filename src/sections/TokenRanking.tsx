@@ -27,7 +27,7 @@ const medalBgs = [
   'bg-gradient-to-r from-orange-700/20 to-orange-800/10 border-orange-700/40',
 ];
 
-const PAGE_SIZE = 15;
+const PAGE_SIZE = 10;
 const ROTATE_INTERVAL = 5000; // 5秒
 
 export const TokenRanking: React.FC = () => {

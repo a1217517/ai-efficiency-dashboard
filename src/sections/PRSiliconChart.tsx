@@ -12,7 +12,7 @@ interface SiliconContentItem {
   total_lines: number;
 }
 
-const PAGE_SIZE = 15;
+const PAGE_SIZE = 10;
 const ROTATE_INTERVAL = 5000; // 5秒
 
 const medalColors = ['#FFD700', '#C0C0C0', '#CD7F32'];
