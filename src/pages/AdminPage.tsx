@@ -570,7 +570,7 @@ export const AdminPage: React.FC = () => {
             <div className="flex items-center gap-3">
               <div className="w-1 h-6 bg-cyan-400 rounded-full" />
               <h2 className="text-white font-semibold text-xl">
-                {activeTab === 'users' ? '用户管理' : activeTab === 'team-savings' ? '团队节省时间数据' : activeTab === 'token-usages' ? 'Token 使用量数据' : '硅含量数据'}
+                {activeTab === 'users' ? '用户管理' : activeTab === 'team-savings' ? '部署效率对比' : activeTab === 'token-usages' ? 'Token 使用量数据' : '硅含量数据'}
               </h2>
               <span className="text-slate-500 text-sm">
                 共 {activeTab === 'users' ? userTotal : activeTab === 'team-savings' ? savingTotal : activeTab === 'token-usages' ? tokenUsageTotal : siliconTotal} 条
@@ -588,7 +588,7 @@ export const AdminPage: React.FC = () => {
                   onClick={() => setActiveTab('team-savings')}
                   className={`px-4 py-1.5 text-sm transition-colors ${activeTab === 'team-savings' ? 'bg-cyan-600 text-white' : 'text-slate-400 hover:text-white'}`}
                 >
-                  图表数据
+                  部署效率对比
                 </button>
                 <button
                   onClick={() => setActiveTab('token-usages')}
@@ -1138,7 +1138,7 @@ export const AdminPage: React.FC = () => {
       {/* TeamSaving Create Dialog */}
       <Dialog open={isSavingCreateOpen} onOpenChange={setIsSavingCreateOpen}>
         <DialogContent className="bg-[#0f1629] border border-slate-700 text-white max-w-md">
-          <DialogHeader><DialogTitle className="text-white">新增团队节省时间数据</DialogTitle></DialogHeader>
+          <DialogHeader><DialogTitle className="text-white">新增部署效率数据</DialogTitle></DialogHeader>
           <div className="space-y-3 py-2">
             <div>
               <label className="text-sm text-slate-400 mb-1 block">团队名称 <span className="text-red-400">*</span></label>
@@ -1167,7 +1167,7 @@ export const AdminPage: React.FC = () => {
       {/* TeamSaving Edit Dialog */}
       <Dialog open={isSavingEditOpen} onOpenChange={setIsSavingEditOpen}>
         <DialogContent className="bg-[#0f1629] border border-slate-700 text-white max-w-md">
-          <DialogHeader><DialogTitle className="text-white">编辑团队数据 - {selectedSaving?.team_name}</DialogTitle></DialogHeader>
+          <DialogHeader><DialogTitle className="text-white">编辑部署效率 - {selectedSaving?.team_name}</DialogTitle></DialogHeader>
           <div className="space-y-3 py-2">
             <div><label className="text-sm text-slate-400 mb-1 block">团队名称</label><Input value={savingEditForm.team_name} onChange={e => setSavingEditForm({ ...savingEditForm, team_name: e.target.value })} className="bg-[#1a2235] border-slate-700 text-white" /></div>
             <div><label className="text-sm text-slate-400 mb-1 block">传统部署AI开发环境耗时（分钟）</label><Input type="number" step="0.1" value={savingEditForm.traditional_minutes || ''} onChange={e => setSavingEditForm({ ...savingEditForm, traditional_minutes: Number(e.target.value) })} className="bg-[#1a2235] border-slate-700 text-white" /></div>
