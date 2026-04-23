@@ -2,10 +2,8 @@ import { BrowserRouter, Routes, Route } from 'react-router-dom';
 import { TopBar } from './sections/TopBar';
 import { TokenRanking } from './sections/TokenRanking';
 import { PRSiliconChart } from './sections/PRSiliconChart';
-import { TeamAIUsageChart } from './sections/TeamAIUsageChart';
 import { DeployMetricsChart } from './sections/DeployMetricsChart';
 import { KPICards } from './sections/KPICards';
-import { SystemHealth } from './sections/SystemHealth';
 import { AdminPage } from './pages/AdminPage';
 
 function Dashboard() {
@@ -16,27 +14,21 @@ function Dashboard() {
 
       {/* Main dashboard grid */}
       <main className="flex-1 p-4 grid gap-4" style={{
-        gridTemplateRows: 'minmax(0, 1fr) minmax(0, 280px)',
-        gridTemplateColumns: '1fr 1fr 1fr',
+        gridTemplateRows: 'minmax(0, 1fr) minmax(0, 320px)',
+        gridTemplateColumns: '1fr 1fr',
         minHeight: 0,
       }}>
-        {/* Row 1 */}
+        {/* Row 1: 两个排行列表并排 */}
         <div style={{ gridRow: '1 / 2', gridColumn: '1 / 2' }}>
           <PRSiliconChart />
         </div>
         <div style={{ gridRow: '1 / 2', gridColumn: '2 / 3' }}>
           <TokenRanking />
         </div>
-        <div style={{ gridRow: '1 / 2', gridColumn: '3 / 4' }}>
-          <TeamAIUsageChart />
-        </div>
 
-        {/* Row 2 */}
+        {/* Row 2: 部署指标全宽 */}
         <div style={{ gridRow: '2 / 3', gridColumn: '1 / 3' }}>
           <DeployMetricsChart />
-        </div>
-        <div style={{ gridRow: '2 / 3', gridColumn: '3 / 4' }}>
-          <SystemHealth />
         </div>
       </main>
 
