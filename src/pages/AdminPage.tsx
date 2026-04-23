@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import {
   Table, TableBody, TableCell, TableHead, TableHeader, TableRow,
 } from '@/components/ui/table';
@@ -34,8 +34,35 @@ interface TeamSaving {
   created_at: string;
 }
 
+interface TokenUsage {
+  id: string;
+  rank: number;
+  username: string;
+  role_category: string;
+  total_tokens: number;
+  daily_tokens: number;
+  request_count: number;
+  cost: number;
+  import_batch: string;
+  created_at: string;
+}
+
+interface ImportResult {
+  success_count: number;
+  fail_count: number;
+  errors: string[];
+  batch_id: string;
+}
+
+const formatTokens = (n: number): string => {
+  if (n >= 1_000_000_000) return `${(n / 1_000_000_000).toFixed(2)}B`;
+  if (n >= 1_000_000) return `${(n / 1_000_000).toFixed(2)}M`;
+  if (n >= 1_000) return `${(n / 1_000).toFixed(1)}K`;
+  return n.toString();
+};
+
 export const AdminPage: React.FC = () => {
-  const [activeTab, setActiveTab] = useState<'users' | 'team-savings'>('users');
+  const [activeTab, setActiveTab] = useState<'users' | 'team-savings' | 'token-usages'>('users');
   const [token, setToken] = useState(localStorage.getItem('admin_token') || '');
   const [isLoginOpen, setIsLoginOpen] = useState(!token);
   const [loginForm, setLoginForm] = useState({ username: '', password: '' });
@@ -68,11 +95,28 @@ export const AdminPage: React.FC = () => {
   const [savingCreateForm, setSavingCreateForm] = useState({ team_name: '', traditional_minutes: 0, standard_minutes: 0, sort_order: 0 });
   const [savingEditForm, setSavingEditForm] = useState({ team_name: '', traditional_minutes: 0, standard_minutes: 0, sort_order: 0 });
 
+  // TokenUsage states
+  const [tokenUsages, setTokenUsages] = useState<TokenUsage[]>([]);
+  const [tokenUsageTotal, setTokenUsageTotal] = useState(0);
+  const [tokenUsagePage, setTokenUsagePage] = useState(1);
+  const [tokenUsagePageSize] = useState(20);
+  const [tokenUsageKeyword, setTokenUsageKeyword] = useState('');
+  const [tokenUsageLoading, setTokenUsageLoading] = useState(false);
+  const [tokenUsageBatchID, setTokenUsageBatchID] = useState('');
+  const [batches, setBatches] = useState<string[]>([]);
+  const [isImportOpen, setIsImportOpen] = useState(false);
+  const [importFile, setImportFile] = useState<File | null>(null);
+  const [importLoading, setImportLoading] = useState(false);
+  const [importResult, setImportResult] = useState<ImportResult | null>(null);
+  const [isImportResultOpen, setIsImportResultOpen] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+
   const handleLogout = () => {
     localStorage.removeItem('admin_token');
     setToken('');
     setUsers([]);
     setSavings([]);
+    setTokenUsages([]);
     setIsLoginOpen(true);
   };
 
@@ -266,6 +310,104 @@ export const AdminPage: React.FC = () => {
     }
   };
 
+  // TokenUsage CRUD
+  const fetchBatches = useCallback(async () => {
+    if (!token) return;
+    try {
+      const res = await fetch(`${API_BASE}/token-usages/batches`, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      const data = await res.json();
+      if (data.code === 0) {
+        setBatches(data.data || []);
+      }
+    } catch (err) {
+      console.error(err);
+    }
+  }, [token]);
+
+  const fetchTokenUsages = useCallback(async () => {
+    if (!token) return;
+    setTokenUsageLoading(true);
+    try {
+      let url = `${API_BASE}/token-usages?page=${tokenUsagePage}&page_size=${tokenUsagePageSize}&keyword=${encodeURIComponent(tokenUsageKeyword)}`;
+      if (tokenUsageBatchID) {
+        url += `&batch_id=${encodeURIComponent(tokenUsageBatchID)}`;
+      }
+      const res = await fetch(url, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      const data = await res.json();
+      if (data.code === 0) {
+        setTokenUsages(data.data.list);
+        setTokenUsageTotal(data.data.total);
+      } else if (data.code === 401) {
+        handleLogout();
+      }
+    } catch (err) {
+      console.error(err);
+    } finally {
+      setTokenUsageLoading(false);
+    }
+  }, [token, tokenUsagePage, tokenUsagePageSize, tokenUsageKeyword, tokenUsageBatchID]);
+
+  useEffect(() => {
+    if (activeTab === 'token-usages') {
+      fetchTokenUsages();
+      fetchBatches();
+    }
+  }, [fetchTokenUsages, fetchBatches, activeTab]);
+
+  const handleImport = async () => {
+    if (!importFile) {
+      alert('请选择文件');
+      return;
+    }
+    setImportLoading(true);
+    try {
+      const formData = new FormData();
+      formData.append('file', importFile);
+      const res = await fetch(`${API_BASE}/token-usages/import`, {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${token}` },
+        body: formData,
+      });
+      const data = await res.json();
+      if (data.code === 0) {
+        setImportResult(data.data);
+        setIsImportOpen(false);
+        setImportFile(null);
+        setIsImportResultOpen(true);
+        fetchTokenUsages();
+        fetchBatches();
+      } else {
+        alert(data.message || '导入失败');
+      }
+    } catch {
+      alert('网络错误');
+    } finally {
+      setImportLoading(false);
+    }
+  };
+
+  const handleTokenUsageDelete = async (id: string) => {
+    if (!confirm('确定要删除这条记录吗？')) return;
+    try {
+      const res = await fetch(`${API_BASE}/token-usages/${id}`, {
+        method: 'DELETE',
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      const data = await res.json();
+      if (data.code === 0) {
+        fetchTokenUsages();
+      } else {
+        alert(data.message || '删除失败');
+      }
+    } catch {
+      alert('网络错误');
+    }
+  };
+
   const openUserEdit = (user: User) => {
     setSelectedUser(user);
     setUserEditForm({ nickname: user.nickname, phone: user.phone, role: user.role, status: user.status });
@@ -290,6 +432,7 @@ export const AdminPage: React.FC = () => {
 
   const userTotalPages = Math.ceil(userTotal / userPageSize);
   const savingTotalPages = Math.ceil(savingTotal / savingPageSize);
+  const tokenUsageTotalPages = Math.ceil(tokenUsageTotal / tokenUsagePageSize);
 
   return (
     <div className="min-h-screen flex flex-col" style={{ background: '#080e1a' }}>
@@ -325,10 +468,10 @@ export const AdminPage: React.FC = () => {
             <div className="flex items-center gap-3">
               <div className="w-1 h-6 bg-cyan-400 rounded-full" />
               <h2 className="text-white font-semibold text-xl">
-                {activeTab === 'users' ? '用户管理' : '团队节省时间数据'}
+                {activeTab === 'users' ? '用户管理' : activeTab === 'team-savings' ? '团队节省时间数据' : 'Token 使用量数据'}
               </h2>
               <span className="text-slate-500 text-sm">
-                共 {activeTab === 'users' ? userTotal : savingTotal} 条
+                共 {activeTab === 'users' ? userTotal : activeTab === 'team-savings' ? savingTotal : tokenUsageTotal} 条
               </span>
             </div>
             <div className="flex items-center gap-3">
@@ -344,6 +487,12 @@ export const AdminPage: React.FC = () => {
                   className={`px-4 py-1.5 text-sm transition-colors ${activeTab === 'team-savings' ? 'bg-cyan-600 text-white' : 'text-slate-400 hover:text-white'}`}
                 >
                   图表数据
+                </button>
+                <button
+                  onClick={() => setActiveTab('token-usages')}
+                  className={`px-4 py-1.5 text-sm transition-colors ${activeTab === 'token-usages' ? 'bg-cyan-600 text-white' : 'text-slate-400 hover:text-white'}`}
+                >
+                  Token 数据
                 </button>
               </div>
               <Button onClick={handleLogout} className="bg-red-600 hover:bg-red-500 text-white">登出</Button>
@@ -459,9 +608,9 @@ export const AdminPage: React.FC = () => {
                   </TableHeader>
                   <TableBody>
                     {savingLoading ? (
-                      <TableRow><TableCell colSpan={6} className="text-center text-slate-500 py-8">加载中...</TableCell></TableRow>
+                      <TableRow><TableCell colSpan={8} className="text-center text-slate-500 py-8">加载中...</TableCell></TableRow>
                     ) : savings.length === 0 ? (
-                      <TableRow><TableCell colSpan={6} className="text-center text-slate-500 py-8">暂无数据</TableCell></TableRow>
+                      <TableRow><TableCell colSpan={8} className="text-center text-slate-500 py-8">暂无数据</TableCell></TableRow>
                     ) : (
                       savings.map(s => (
                         <TableRow key={s.id} className="border-slate-800/60 hover:bg-[#111827]/50">
@@ -495,8 +644,172 @@ export const AdminPage: React.FC = () => {
               </div>
             </>
           )}
+
+          {/* TokenUsage Management */}
+          {activeTab === 'token-usages' && (
+            <>
+              <div className="flex items-center gap-3 mb-4">
+                <Input
+                  placeholder="搜索用户名"
+                  value={tokenUsageKeyword}
+                  onChange={e => setTokenUsageKeyword(e.target.value)}
+                  onKeyDown={e => e.key === 'Enter' && setTokenUsagePage(1)}
+                  className="w-48 bg-[#1a2235] border-slate-700 text-white placeholder:text-slate-500"
+                />
+                <select
+                  value={tokenUsageBatchID}
+                  onChange={e => { setTokenUsageBatchID(e.target.value); setTokenUsagePage(1); }}
+                  className="h-9 rounded-md border border-slate-700 bg-[#1a2235] text-white px-3 text-sm"
+                >
+                  <option value="">所有批次</option>
+                  {batches.map(batch => (
+                    <option key={batch} value={batch}>{batch}</option>
+                  ))}
+                </select>
+                <Button onClick={() => setTokenUsagePage(1)} className="bg-slate-700 hover:bg-slate-600 text-white">搜索</Button>
+                <Button onClick={() => setIsImportOpen(true)} className="bg-cyan-600 hover:bg-cyan-500 text-white">📥 导入 Excel</Button>
+              </div>
+
+              <div className="dashboard-card overflow-hidden">
+                <Table>
+                  <TableHeader>
+                    <TableRow className="border-slate-800 hover:bg-transparent">
+                      <TableHead className="text-slate-400">排名</TableHead>
+                      <TableHead className="text-slate-400">用户名</TableHead>
+                      <TableHead className="text-slate-400">职类</TableHead>
+                      <TableHead className="text-slate-400">Total Tokens</TableHead>
+                      <TableHead className="text-slate-400">日均 Tokens</TableHead>
+                      <TableHead className="text-slate-400">请求次数</TableHead>
+                      <TableHead className="text-slate-400">费用</TableHead>
+                      <TableHead className="text-slate-400">批次</TableHead>
+                      <TableHead className="text-slate-400">操作</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {tokenUsageLoading ? (
+                      <TableRow><TableCell colSpan={9} className="text-center text-slate-500 py-8">加载中...</TableCell></TableRow>
+                    ) : tokenUsages.length === 0 ? (
+                      <TableRow><TableCell colSpan={9} className="text-center text-slate-500 py-8">暂无数据，请先导入 Excel</TableCell></TableRow>
+                    ) : (
+                      tokenUsages.map(item => (
+                        <TableRow key={item.id} className="border-slate-800/60 hover:bg-[#111827]/50">
+                          <TableCell className="text-white font-mono font-medium">{item.rank}</TableCell>
+                          <TableCell className="text-white font-medium">{item.username}</TableCell>
+                          <TableCell>
+                            <span className={`px-2 py-0.5 rounded text-xs font-medium ${
+                              item.role_category === '开发类' ? 'bg-blue-500/20 text-blue-300' :
+                              item.role_category === '测试类' ? 'bg-green-500/20 text-green-300' :
+                              item.role_category === '管理类' ? 'bg-purple-500/20 text-purple-300' :
+                              item.role_category === '安全类' ? 'bg-red-500/20 text-red-300' :
+                              'bg-slate-500/20 text-slate-300'
+                            }`}>{item.role_category}</span>
+                          </TableCell>
+                          <TableCell className="text-cyan-300 font-mono">{formatTokens(item.total_tokens)}</TableCell>
+                          <TableCell className="text-slate-300 font-mono">{formatTokens(item.daily_tokens)}</TableCell>
+                          <TableCell className="text-slate-300 font-mono">{item.request_count.toLocaleString()}</TableCell>
+                          <TableCell className="text-amber-300 font-mono">¥{item.cost.toFixed(2)}</TableCell>
+                          <TableCell className="text-slate-500 text-xs">{item.import_batch}</TableCell>
+                          <TableCell>
+                            <button onClick={() => handleTokenUsageDelete(item.id)} className="text-red-400 hover:text-red-300 text-sm">删除</button>
+                          </TableCell>
+                        </TableRow>
+                      ))
+                    )}
+                  </TableBody>
+                </Table>
+                {tokenUsageTotalPages > 1 && (
+                  <div className="flex items-center justify-between px-4 py-3 border-t border-slate-800/60">
+                    <span className="text-slate-500 text-sm">第 {tokenUsagePage} / {tokenUsageTotalPages} 页</span>
+                    <div className="flex items-center gap-2">
+                      <Button variant="outline" size="sm" onClick={() => setTokenUsagePage(p => Math.max(1, p - 1))} disabled={tokenUsagePage <= 1} className="border-slate-700 text-slate-300 hover:bg-slate-800">上一页</Button>
+                      <Button variant="outline" size="sm" onClick={() => setTokenUsagePage(p => Math.min(tokenUsageTotalPages, p + 1))} disabled={tokenUsagePage >= tokenUsageTotalPages} className="border-slate-700 text-slate-300 hover:bg-slate-800">下一页</Button>
+                    </div>
+                  </div>
+                )}
+              </div>
+            </>
+          )}
         </div>
       </main>
+
+      {/* Import Dialog */}
+      <Dialog open={isImportOpen} onOpenChange={setIsImportOpen}>
+        <DialogContent className="bg-[#0f1629] border border-slate-700 text-white max-w-md">
+          <DialogHeader>
+            <DialogTitle className="text-white">导入 Token 使用量数据</DialogTitle>
+            <DialogDescription className="text-slate-400">
+              上传 Excel 文件（.xlsx），要求包含列：排名、用户名、职类、Total Tokens、日均 Tokens、请求次数、费用
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4 py-4">
+            <div
+              className="border-2 border-dashed border-slate-700 rounded-lg p-6 text-center cursor-pointer hover:border-cyan-500/50 transition-colors"
+              onClick={() => fileInputRef.current?.click()}
+            >
+              <input
+                ref={fileInputRef}
+                type="file"
+                accept=".xlsx"
+                className="hidden"
+                onChange={e => setImportFile(e.target.files?.[0] || null)}
+              />
+              {importFile ? (
+                <div className="space-y-1">
+                  <div className="text-cyan-400 font-medium">{importFile.name}</div>
+                  <div className="text-slate-500 text-sm">{(importFile.size / 1024).toFixed(1)} KB</div>
+                </div>
+              ) : (
+                <div className="space-y-1">
+                  <div className="text-slate-400">点击选择或拖拽 Excel 文件</div>
+                  <div className="text-slate-600 text-sm">支持 .xlsx 格式</div>
+                </div>
+              )}
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => { setIsImportOpen(false); setImportFile(null); }} className="border-slate-700 text-slate-300">取消</Button>
+            <Button onClick={handleImport} disabled={!importFile || importLoading} className="bg-cyan-600 hover:bg-cyan-500 text-white">
+              {importLoading ? '导入中...' : '导入'}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Import Result Dialog */}
+      <Dialog open={isImportResultOpen} onOpenChange={setIsImportResultOpen}>
+        <DialogContent className="bg-[#0f1629] border border-slate-700 text-white max-w-md">
+          <DialogHeader>
+            <DialogTitle className="text-white">导入结果</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-3 py-2">
+            <div className="flex items-center gap-4">
+              <div className="text-center">
+                <div className="text-green-400 text-2xl font-bold">{importResult?.success_count || 0}</div>
+                <div className="text-slate-500 text-sm">成功</div>
+              </div>
+              <div className="text-center">
+                <div className="text-red-400 text-2xl font-bold">{importResult?.fail_count || 0}</div>
+                <div className="text-slate-500 text-sm">失败</div>
+              </div>
+              <div className="text-center">
+                <div className="text-cyan-400 text-2xl font-bold">{importResult?.batch_id || '-'}</div>
+                <div className="text-slate-500 text-sm">批次</div>
+              </div>
+            </div>
+            {importResult && importResult.errors && importResult.errors.length > 0 && (
+              <div className="bg-red-500/10 border border-red-500/30 rounded-lg p-3 max-h-40 overflow-y-auto">
+                <div className="text-red-400 text-sm font-medium mb-2">错误详情：</div>
+                {importResult.errors.map((err, i) => (
+                  <div key={i} className="text-red-300 text-xs">{err}</div>
+                ))}
+              </div>
+            )}
+          </div>
+          <DialogFooter>
+            <Button onClick={() => setIsImportResultOpen(false)} className="bg-cyan-600 hover:bg-cyan-500 text-white">确定</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
       {/* User Create Dialog */}
       <Dialog open={isUserCreateOpen} onOpenChange={setIsUserCreateOpen}>

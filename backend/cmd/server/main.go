@@ -26,10 +26,13 @@ func main() {
 
 	userRepo := repository.NewUserRepository(db)
 	teamSavingRepo := repository.NewTeamSavingRepository(db)
+	tokenUsageRepo := repository.NewTokenUsageRepository(db)
 	userService := service.NewUserService(userRepo)
 	teamSavingService := service.NewTeamSavingService(teamSavingRepo)
+	tokenUsageService := service.NewTokenUsageService(tokenUsageRepo)
 	userHandler := handler.NewUserHandler(userService)
 	teamSavingHandler := handler.NewTeamSavingHandler(teamSavingService)
+	tokenUsageHandler := handler.NewTokenUsageHandler(tokenUsageService)
 
 	authHandler := handler.NewAuthHandler(userService, cfg.JWT)
 
@@ -50,6 +53,9 @@ func main() {
 
 		api.GET("/team-savings/all", teamSavingHandler.ListAll)
 
+		// Token 使用量 - 公开接口
+		api.GET("/token-usages/all", tokenUsageHandler.ListAll)
+
 		auth := api.Group("/")
 		auth.Use(middleware.JWTAuth(cfg.JWT.Secret))
 		{
@@ -64,6 +70,14 @@ func main() {
 			auth.POST("/team-savings", teamSavingHandler.Create)
 			auth.PUT("/team-savings/:id", teamSavingHandler.Update)
 			auth.DELETE("/team-savings/:id", teamSavingHandler.Delete)
+
+			// Token 使用量管理
+			auth.GET("/token-usages", tokenUsageHandler.List)
+			auth.GET("/token-usages/:id", tokenUsageHandler.GetByID)
+			auth.POST("/token-usages", tokenUsageHandler.Create)
+			auth.PUT("/token-usages/:id", tokenUsageHandler.Update)
+			auth.DELETE("/token-usages/:id", tokenUsageHandler.Delete)
+			auth.POST("/token-usages/import", tokenUsageHandler.ImportExcel)
 		}
 	}
 

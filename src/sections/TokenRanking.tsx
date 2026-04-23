@@ -1,5 +1,24 @@
-import React, { useState, useEffect, useRef } from 'react';
-import { generateTokenRanking, formatTokens, type Member } from '../data/mockData';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
+
+const API_BASE = 'http://47.103.58.81:8082/api/v1';
+
+interface TokenUsageItem {
+  id: string;
+  rank: number;
+  username: string;
+  role_category: string;
+  total_tokens: number;
+  daily_tokens: number;
+  request_count: number;
+  cost: number;
+}
+
+const formatTokens = (n: number): string => {
+  if (n >= 1_000_000_000) return `${(n / 1_000_000_000).toFixed(2)}B`;
+  if (n >= 1_000_000) return `${(n / 1_000_000).toFixed(2)}M`;
+  if (n >= 1_000) return `${(n / 1_000).toFixed(1)}K`;
+  return n.toString();
+};
 
 const medalColors = ['#FFD700', '#C0C0C0', '#CD7F32'];
 const medalBgs = [
@@ -8,31 +27,94 @@ const medalBgs = [
   'bg-gradient-to-r from-orange-700/20 to-orange-800/10 border-orange-700/40',
 ];
 
-const RankChange = ({ change, prevRank, rank }: { change: Member['change']; prevRank: number; rank: number }) => {
-  const diff = prevRank - rank;
-  if (change === 'up') return <span className="text-green-400 text-xs font-mono flex items-center gap-0.5">▲{diff}</span>;
-  if (change === 'down') return <span className="text-red-400 text-xs font-mono flex items-center gap-0.5">▼{Math.abs(diff)}</span>;
-  return <span className="text-slate-500 text-xs">—</span>;
-};
+const PAGE_SIZE = 15;
+const ROTATE_INTERVAL = 5000; // 5秒
 
 export const TokenRanking: React.FC = () => {
-  const [members, setMembers] = useState<Member[]>(generateTokenRanking());
-  const maxTokens = members[0]?.tokens ?? 1;
+  const [members, setMembers] = useState<TokenUsageItem[]>([]);
+  const [currentPage, setCurrentPage] = useState(0);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
   const containerRef = useRef<HTMLDivElement>(null);
 
-  useEffect(() => {
-    const timer = setInterval(() => {
-      setMembers(prev => {
-        const updated = prev.map(m => ({
-          ...m,
-          tokens: m.tokens + Math.floor(Math.random() * 800),
-        }));
-        updated.sort((a, b) => b.tokens - a.tokens);
-        return updated;
-      });
-    }, 60000);
-    return () => clearInterval(timer);
+  const totalPages = Math.ceil(members.length / PAGE_SIZE);
+  const displayMembers = members.slice(currentPage * PAGE_SIZE, (currentPage + 1) * PAGE_SIZE);
+  const maxTokens = members.length > 0 ? members[0].total_tokens : 1;
+  const totalTokens = members.reduce((s, m) => s + m.total_tokens, 0);
+
+  const fetchData = useCallback(async () => {
+    try {
+      const res = await fetch(`${API_BASE}/token-usages/all`);
+      const data = await res.json();
+      if (data.code === 0) {
+        setMembers(data.data || []);
+        setError(null);
+      } else {
+        setError(data.message || '加载失败');
+      }
+    } catch (err) {
+      setError('网络错误');
+    } finally {
+      setLoading(false);
+    }
   }, []);
+
+  // 数据刷新：每60秒
+  useEffect(() => {
+    fetchData();
+    const timer = setInterval(fetchData, 60000);
+    return () => clearInterval(timer);
+  }, [fetchData]);
+
+  // 轮播：每5秒翻页
+  useEffect(() => {
+    if (members.length <= PAGE_SIZE) return;
+    const timer = setInterval(() => {
+      setCurrentPage(prev => {
+        const next = prev + 1;
+        return next >= totalPages ? 0 : next;
+      });
+    }, ROTATE_INTERVAL);
+    return () => clearInterval(timer);
+  }, [members.length, totalPages]);
+
+  // 数据刷新时重置到第一页
+  useEffect(() => {
+    setCurrentPage(0);
+  }, [members.length]);
+
+  if (loading) {
+    return (
+      <div className="dashboard-card glow-cyan h-full flex flex-col p-4">
+        <div className="flex items-center justify-between mb-4">
+          <div className="flex items-center gap-2">
+            <div className="w-1 h-6 bg-cyan-400 rounded-full" style={{ boxShadow: '0 0 8px #00d4ff' }} />
+            <h2 className="text-white font-semibold text-base">Token 实时排行榜</h2>
+          </div>
+        </div>
+        <div className="flex-1 flex items-center justify-center">
+          <span className="text-slate-500">加载中...</span>
+        </div>
+      </div>
+    );
+  }
+
+  if (error) {
+    return (
+      <div className="dashboard-card glow-cyan h-full flex flex-col p-4">
+        <div className="flex items-center justify-between mb-4">
+          <div className="flex items-center gap-2">
+            <div className="w-1 h-6 bg-cyan-400 rounded-full" style={{ boxShadow: '0 0 8px #00d4ff' }} />
+            <h2 className="text-white font-semibold text-base">Token 实时排行榜</h2>
+          </div>
+        </div>
+        <div className="flex-1 flex items-center justify-center flex-col gap-2">
+          <span className="text-red-400">{error}</span>
+          <button onClick={fetchData} className="text-cyan-400 text-sm hover:underline">重试</button>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="dashboard-card glow-cyan h-full flex flex-col p-4">
@@ -49,10 +131,24 @@ export const TokenRanking: React.FC = () => {
         </div>
       </div>
 
+      {/* 页码指示器 */}
+      {totalPages > 1 && (
+        <div className="flex items-center justify-center gap-1 mb-2">
+          {Array.from({ length: totalPages }).map((_, i) => (
+            <div
+              key={i}
+              className={`h-1 rounded-full transition-all duration-300 ${
+                i === currentPage ? 'w-4 bg-cyan-400' : 'w-1.5 bg-slate-700'
+              }`}
+            />
+          ))}
+        </div>
+      )}
+
       <div ref={containerRef} className="flex-1 overflow-y-auto space-y-1.5 pr-1">
-        {members.map((member, idx) => {
-          const rank = idx + 1;
-          const pct = (member.tokens / maxTokens) * 100;
+        {displayMembers.map((member) => {
+          const rank = member.rank;
+          const pct = maxTokens > 0 ? (member.total_tokens / maxTokens) * 100 : 0;
           const isTop3 = rank <= 3;
 
           return (
@@ -75,15 +171,15 @@ export const TokenRanking: React.FC = () => {
               {/* Avatar */}
               <div className={`w-8 h-8 rounded-full flex-shrink-0 overflow-hidden border ${isTop3 ? 'border-yellow-500/50' : 'border-slate-700'}`}>
                 <div className="w-full h-full bg-gradient-to-br from-blue-600 to-cyan-500 flex items-center justify-center text-white text-xs font-semibold">
-                  {member.name[0]}
+                  {member.username[0]}
                 </div>
               </div>
 
               {/* Info */}
               <div className="flex-1 min-w-0">
                 <div className="flex items-center gap-2 mb-0.5">
-                  <span className="text-white text-sm font-medium">{member.name}</span>
-                  <span className="text-slate-500 text-xs truncate">{member.team}</span>
+                  <span className="text-white text-sm font-medium">{member.username}</span>
+                  <span className="text-slate-500 text-xs truncate">{member.role_category}</span>
                 </div>
                 {/* Progress bar */}
                 <div className="h-1.5 bg-slate-800 rounded-full overflow-hidden">
@@ -97,12 +193,12 @@ export const TokenRanking: React.FC = () => {
               {/* Tokens */}
               <div className="flex flex-col items-end flex-shrink-0">
                 <span
-                  className={`font-mono text-sm font-semibold key count-up ${isTop3 ? 'text-cyan-300' : 'text-slate-300'}`}
+                  className={`font-mono text-sm font-semibold ${isTop3 ? 'text-cyan-300' : 'text-slate-300'}`}
                   style={isTop3 ? { textShadow: '0 0 8px rgba(0,212,255,0.6)' } : {}}
                 >
-                  {formatTokens(member.tokens)}
+                  {formatTokens(member.total_tokens)}
                 </span>
-                <RankChange change={member.change} prevRank={member.prevRank} rank={rank} />
+                <span className="text-slate-600 text-xs font-mono">{member.request_count.toLocaleString()} 次</span>
               </div>
             </div>
           );
@@ -110,8 +206,15 @@ export const TokenRanking: React.FC = () => {
       </div>
 
       <div className="mt-3 pt-3 border-t border-slate-800 flex items-center justify-between text-xs text-slate-600">
-        <span>共 {members.length} 人参与</span>
-        <span className="font-mono">今日总计：{formatTokens(members.reduce((s, m) => s + m.tokens, 0))}</span>
+        <span>
+          共 {members.length} 人参与
+          {totalPages > 1 && (
+            <span className="ml-2 text-cyan-500">
+              第 {currentPage + 1}/{totalPages} 页 · 5s 轮播
+            </span>
+          )}
+        </span>
+        <span className="font-mono">今日总计：{formatTokens(totalTokens)}</span>
       </div>
     </div>
   );
