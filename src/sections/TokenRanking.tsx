@@ -36,6 +36,8 @@ export const TokenRanking: React.FC = () => {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const containerRef = useRef<HTMLDivElement>(null);
+  const pauseUntilRef = useRef<number>(0);
+  const rotateTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
   const totalPages = Math.ceil(members.length / PAGE_SIZE);
   const displayMembers = members.slice(currentPage * PAGE_SIZE, (currentPage + 1) * PAGE_SIZE);
@@ -66,17 +68,27 @@ export const TokenRanking: React.FC = () => {
     return () => clearInterval(timer);
   }, [fetchData]);
 
-  // 轮播：每5秒翻页
+  // 轮播：每5秒翻页（支持暂停）
   useEffect(() => {
     if (members.length <= PAGE_SIZE) return;
-    const timer = setInterval(() => {
+    if (rotateTimerRef.current) clearInterval(rotateTimerRef.current);
+    rotateTimerRef.current = setInterval(() => {
+      const now = Date.now();
+      if (now < pauseUntilRef.current) return;
       setCurrentPage(prev => {
         const next = prev + 1;
         return next >= totalPages ? 0 : next;
       });
     }, ROTATE_INTERVAL);
-    return () => clearInterval(timer);
+    return () => {
+      if (rotateTimerRef.current) clearInterval(rotateTimerRef.current);
+    };
   }, [members.length, totalPages]);
+
+  const handleDotClick = (pageIndex: number) => {
+    setCurrentPage(pageIndex);
+    pauseUntilRef.current = Date.now() + 5000; // 点击后暂停轮播5秒
+  };
 
   // 数据刷新时重置到第一页
   useEffect(() => {
@@ -135,11 +147,13 @@ export const TokenRanking: React.FC = () => {
       {totalPages > 1 && (
         <div className="flex items-center justify-center gap-1 mb-2">
           {Array.from({ length: totalPages }).map((_, i) => (
-            <div
+            <button
               key={i}
-              className={`h-1 rounded-full transition-all duration-300 ${
-                i === currentPage ? 'w-4 bg-cyan-400' : 'w-1.5 bg-slate-700'
+              onClick={() => handleDotClick(i)}
+              className={`h-1 rounded-full transition-all duration-300 cursor-pointer hover:opacity-80 ${
+                i === currentPage ? 'w-4 bg-cyan-400' : 'w-1.5 bg-slate-700 hover:bg-slate-500'
               }`}
+              aria-label={`跳转到第 ${i + 1} 页`}
             />
           ))}
         </div>
