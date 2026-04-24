@@ -5,4 +5,9 @@ dist/
 *.log
 server.log
 backend/bin/
+backend/server
 dist/
+*.pid
+frontend.log
+backend.log
+frontend-build.log

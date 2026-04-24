@@ -60,11 +60,19 @@ export const DeployMetricsChart: React.FC = () => {
           </div>`;
         },
       },
-      grid: { left: 8, right: 16, top: 40, bottom: 4, containLabel: true },
+      grid: { left: 8, right: 16, top: 40, bottom: 80, containLabel: true },
       xAxis: {
         type: 'category',
         data: teams,
-        axisLabel: { color: '#94a3b8', fontSize: 11, fontWeight: 'bold' },
+        axisLabel: {
+          color: '#94a3b8',
+          fontSize: 11,
+          fontWeight: 'bold',
+          rotate: 45,
+          interval: 0,
+          overflow: 'break',
+          width: 80,
+        },
         axisLine: { lineStyle: { color: '#1e293b' } },
         splitLine: { show: false },
       },

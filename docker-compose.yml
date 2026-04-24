@@ -17,49 +17,7 @@ services:
       interval: 10s
       timeout: 5s
       retries: 5
-    networks:
-      - ai-efficiency-net
-
-  backend:
-    build:
-      context: ./backend
-      dockerfile: Dockerfile
-    container_name: ai-efficiency-backend
-    environment:
-      DB_HOST: postgres
-      DB_PORT: 5432
-      DB_USER: postgres
-      DB_PASSWORD: postgres
-      DB_NAME: ai_efficiency
-      DB_SSLMODE: disable
-      JWT_SECRET: ai-efficiency-secret-key-2026
-      JWT_EXPIRE: 24
-      PORT: 8080
-    ports:
-      - "8082:8080"
-    depends_on:
-      postgres:
-        condition: service_healthy
     restart: unless-stopped
-    networks:
-      - ai-efficiency-net
-
-  frontend:
-    build:
-      context: .
-      dockerfile: Dockerfile
-    container_name: ai-efficiency-frontend
-    ports:
-      - "8081:80"
-    depends_on:
-      - backend
-    restart: unless-stopped
-    networks:
-      - ai-efficiency-net
 
 volumes:
   postgres_data:
-
-networks:
-  ai-efficiency-net:
-    driver: bridge
