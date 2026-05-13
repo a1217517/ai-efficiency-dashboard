@@ -1,6 +1,8 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
+import { CalendarIcon, ChevronDown } from 'lucide-react';
 import type { DateRange } from '../App';
+import { Popover, PopoverContent, PopoverTrigger } from '../components/ui/popover';
 
 const API_BASE = 'http://47.103.58.81:8082/api/v1';
 
@@ -23,15 +25,26 @@ interface TokenUsage {
 }
 
 interface TopBarProps {
-  dateRange?: DateRange;
+  dateRange: DateRange;
+  onDateRangeChange?: (range: DateRange) => void;
 }
 
-export const TopBar: React.FC<TopBarProps> = ({ dateRange }) => {
+const presets = [
+  { label: '最近7天', days: 7 },
+  { label: '最近15天', days: 15 },
+  { label: '最近30天', days: 30 },
+  { label: '最近90天', days: 90 },
+];
+
+export const TopBar: React.FC<TopBarProps> = ({ dateRange, onDateRangeChange }) => {
   const [time, setTime] = useState(new Date());
   const [announcements, setAnnouncements] = useState<string[]>([
     '📊 正在加载实时数据...',
     '⚡ AI-Native 效能看板运行中',
   ]);
+  const [popoverOpen, setPopoverOpen] = useState(false);
+  const [customStart, setCustomStart] = useState(dateRange.startDate);
+  const [customEnd, setCustomEnd] = useState(dateRange.endDate);
   const navigate = useNavigate();
   const location = useLocation();
   const isAdmin = location.pathname === '/admin';
@@ -56,7 +69,6 @@ export const TopBar: React.FC<TopBarProps> = ({ dateRange }) => {
 
       const msgs: string[] = [];
 
-      // 硅含量数据
       if (siliconRes) {
         const siliconData = await siliconRes.json();
         if (siliconData.code === 0) {
@@ -71,7 +83,6 @@ export const TopBar: React.FC<TopBarProps> = ({ dateRange }) => {
         }
       }
 
-      // 节省时间数据
       if (savingsRes) {
         const savingsData = await savingsRes.json();
         if (savingsData.code === 0) {
@@ -86,7 +97,6 @@ export const TopBar: React.FC<TopBarProps> = ({ dateRange }) => {
         }
       }
 
-      // Token 数据
       if (tokenRes) {
         const tokenData = await tokenRes.json();
         if (tokenData.code === 0) {
@@ -119,6 +129,34 @@ export const TopBar: React.FC<TopBarProps> = ({ dateRange }) => {
     return () => clearInterval(timer);
   }, [fetchTickerData]);
 
+  const applyPreset = (days: number, label: string) => {
+    if (!onDateRangeChange) return;
+    const end = new Date();
+    const start = new Date();
+    start.setDate(end.getDate() - days);
+    const range = {
+      startDate: start.toISOString().split('T')[0],
+      endDate: end.toISOString().split('T')[0],
+      label,
+    };
+    onDateRangeChange(range);
+    setCustomStart(range.startDate);
+    setCustomEnd(range.endDate);
+    setPopoverOpen(false);
+  };
+
+  const applyCustom = () => {
+    if (!onDateRangeChange || !customStart || !customEnd) return;
+    onDateRangeChange({
+      startDate: customStart,
+      endDate: customEnd,
+      label: `${customStart} ~ ${customEnd}`,
+    });
+    setPopoverOpen(false);
+  };
+
+  const isPresetActive = (label: string) => dateRange.label === label;
+
   const pad = (n: number) => String(n).padStart(2, '0');
   const timeStr = `${pad(time.getHours())}:${pad(time.getMinutes())}:${pad(time.getSeconds())}`;
   const dateStr = `${time.getFullYear()}/${pad(time.getMonth() + 1)}/${pad(time.getDate())}`;
@@ -146,8 +184,66 @@ export const TopBar: React.FC<TopBarProps> = ({ dateRange }) => {
           </div>
         </div>
 
-        {/* Right: Time + Nav */}
+        {/* Right: DateFilter + Time + Nav */}
         <div className="flex items-center gap-4">
+          {/* Date Range Picker — 仅看板页面显示 */}
+          {!isAdmin && onDateRangeChange && (
+            <Popover open={popoverOpen} onOpenChange={setPopoverOpen}>
+              <PopoverTrigger asChild>
+                <button className="flex items-center gap-1.5 h-8 rounded-md border border-slate-700 bg-[#0f1629] px-3 text-xs text-slate-300 hover:border-cyan-500/50 hover:text-white transition-colors">
+                  <CalendarIcon className="h-3.5 w-3.5 text-cyan-400" />
+                  <span className="max-w-[120px] truncate">{dateRange.label}</span>
+                  <ChevronDown className="h-3 w-3 text-slate-500" />
+                </button>
+              </PopoverTrigger>
+              <PopoverContent
+                className="w-auto border border-slate-700 bg-[#0f1629] p-3 text-white"
+                align="end"
+                sideOffset={6}
+              >
+                {/* Presets */}
+                <div className="mb-3 flex flex-wrap gap-1.5">
+                  {presets.map((p) => (
+                    <button
+                      key={p.label}
+                      onClick={() => applyPreset(p.days, p.label)}
+                      className={`rounded px-2.5 py-1 text-xs transition-colors ${
+                        isPresetActive(p.label)
+                          ? 'bg-cyan-600 text-white'
+                          : 'bg-[#1a2235] text-slate-400 hover:bg-slate-700 hover:text-white'
+                      }`}
+                    >
+                      {p.label}
+                    </button>
+                  ))}
+                </div>
+
+                {/* Custom date inputs */}
+                <div className="flex items-center gap-2">
+                  <input
+                    type="date"
+                    value={customStart}
+                    onChange={(e) => setCustomStart(e.target.value)}
+                    className="h-8 rounded border border-slate-700 bg-[#1a2235] text-white px-2 text-xs"
+                  />
+                  <span className="text-slate-500 text-xs">~</span>
+                  <input
+                    type="date"
+                    value={customEnd}
+                    onChange={(e) => setCustomEnd(e.target.value)}
+                    className="h-8 rounded border border-slate-700 bg-[#1a2235] text-white px-2 text-xs"
+                  />
+                  <button
+                    onClick={applyCustom}
+                    className="h-8 px-3 rounded bg-cyan-600 text-xs text-white hover:bg-cyan-500 transition-colors"
+                  >
+                    确定
+                  </button>
+                </div>
+              </PopoverContent>
+            </Popover>
+          )}
+
           <div className="text-right">
             <div className="text-white font-mono text-lg font-semibold leading-tight" style={{ textShadow: '0 0 10px rgba(0,212,255,0.5)' }}>
               {dateStr} {timeStr}
