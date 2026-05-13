@@ -23,6 +23,7 @@ interface TeamSaving {
 
 interface TokenUsageItem {
   total_tokens: number;
+  daily_tokens: number;
   username: string;
   role_category: string;
 }
@@ -87,6 +88,7 @@ export const KPICards: React.FC<KPICardsProps> = ({ dateRange }) => {
       : `${totalSavedMinutes}min`;
 
   const totalTokens = tokenUsages.reduce((s, t) => s + (t.total_tokens || 0), 0);
+  const totalDailyTokens = tokenUsages.reduce((s, t) => s + (t.daily_tokens || 0), 0);
 
   const kpiData = [
     {
@@ -100,10 +102,10 @@ export const KPICards: React.FC<KPICardsProps> = ({ dateRange }) => {
     },
     {
       label: 'Token 日均使用量',
-      value: tokenUsages.length > 0 ? formatTokens(totalTokens) : '--',
-      change: tokenUsages.length > 0 ? `${tokenUsages.length} 人参与 · ${dateRange.label}` : '',
+      value: tokenUsages.length > 0 ? formatTokens(totalDailyTokens) : '--',
+      change: tokenUsages.length > 0 ? `${tokenUsages.length} 人 · 总量 ${formatTokens(totalTokens)}` : '',
       changeType: 'up' as const,
-      subLabel: '累计统计',
+      subLabel: dateRange.label,
       color: 'blue' as const,
       glow: 'rgba(59,130,246,0.5)',
     },
