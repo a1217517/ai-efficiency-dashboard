@@ -216,14 +216,19 @@ export const TokenRanking: React.FC<TokenRankingProps> = ({ dateRange }) => {
               </div>
 
               {/* Tokens */}
-              <div className="flex flex-col items-end flex-shrink-0">
+              <div className="flex flex-col items-end flex-shrink-0 gap-0.5">
                 <span
                   className={`font-mono text-sm font-semibold ${isTop3 ? 'text-cyan-300' : 'text-slate-300'}`}
                   style={isTop3 ? { textShadow: '0 0 8px rgba(0,212,255,0.6)' } : {}}
                 >
                   {formatTokens(member.daily_tokens)}
+                  <span className="text-[10px] text-slate-500 font-normal ml-0.5">日均</span>
                 </span>
-                <span className="text-slate-600 text-xs font-mono">{member.request_count.toLocaleString()} 次</span>
+                <span className="text-[11px] text-slate-500 font-mono">
+                  {formatTokens(member.total_tokens)}
+                  <span className="text-[10px] text-slate-600 font-normal ml-0.5">总计</span>
+                  <span className="text-slate-600 text-[10px] ml-1.5">{member.request_count.toLocaleString()}次</span>
+                </span>
               </div>
             </div>
           );
@@ -239,7 +244,9 @@ export const TokenRanking: React.FC<TokenRankingProps> = ({ dateRange }) => {
             </span>
           )}
         </span>
-        <span className="font-mono">日均总计：{formatTokens(totalDailyTokens)}</span>
+        <span className="font-mono">
+          日均：{formatTokens(totalDailyTokens)} / 总量：{formatTokens(members.reduce((s, m) => s + m.total_tokens, 0))}
+        </span>
       </div>
     </div>
   );
