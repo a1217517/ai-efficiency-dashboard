@@ -6,7 +6,6 @@ import { PRSiliconChart } from './sections/PRSiliconChart';
 import { DeployMetricsChart } from './sections/DeployMetricsChart';
 import { KPICards } from './sections/KPICards';
 import { AdminPage } from './pages/AdminPage';
-import type { DateRangeValue } from './components/ui/date-range-picker';
 
 export interface DateRange {
   startDate: string;
@@ -14,11 +13,113 @@ export interface DateRange {
   label: string;
 }
 
-function Dashboard({ dateRange }: { dateRange: DateRange }) {
+function Dashboard() {
+  const [dateRange, setDateRange] = useState<DateRange>(() => {
+    const end = new Date();
+    const start = new Date();
+    start.setDate(end.getDate() - 30);
+    return {
+      startDate: start.toISOString().split('T')[0],
+      endDate: end.toISOString().split('T')[0],
+      label: '最近30天',
+    };
+  });
+  const [showCustom, setShowCustom] = useState(false);
+  const [customStart, setCustomStart] = useState(dateRange.startDate);
+  const [customEnd, setCustomEnd] = useState(dateRange.endDate);
+
+  const presets = [
+    { label: '最近7天', days: 7 },
+    { label: '最近15天', days: 15 },
+    { label: '最近30天', days: 30 },
+    { label: '最近90天', days: 90 },
+  ];
+
+  const applyPreset = (days: number, label: string) => {
+    const end = new Date();
+    const start = new Date();
+    start.setDate(end.getDate() - days);
+    const range = {
+      startDate: start.toISOString().split('T')[0],
+      endDate: end.toISOString().split('T')[0],
+      label,
+    };
+    setDateRange(range);
+    setCustomStart(range.startDate);
+    setCustomEnd(range.endDate);
+    setShowCustom(false);
+  };
+
+  const applyCustom = () => {
+    if (customStart && customEnd) {
+      setDateRange({
+        startDate: customStart,
+        endDate: customEnd,
+        label: `${customStart} ~ ${customEnd}`,
+      });
+      setShowCustom(false);
+    }
+  };
+
   return (
     <>
+      {/* Top bar with marquee */}
+      <TopBar dateRange={dateRange} />
+
       {/* KPI Cards */}
       <KPICards dateRange={dateRange} />
+
+      {/* Date Filter */}
+      <div className="px-4 pb-2 flex items-center gap-2 flex-wrap">
+        <span className="text-slate-500 text-xs">时间范围:</span>
+        {presets.map(p => (
+          <button
+            key={p.label}
+            onClick={() => applyPreset(p.days, p.label)}
+            className={`px-2.5 py-1 text-xs rounded transition-colors ${
+              dateRange.label === p.label
+                ? 'bg-cyan-600 text-white'
+                : 'bg-[#1a2235] text-slate-400 border border-slate-700 hover:text-white'
+            }`}
+          >
+            {p.label}
+          </button>
+        ))}
+        <button
+          onClick={() => setShowCustom(!showCustom)}
+          className={`px-2.5 py-1 text-xs rounded transition-colors ${
+            showCustom || !presets.some(p => p.label === dateRange.label)
+              ? 'bg-cyan-600 text-white'
+              : 'bg-[#1a2235] text-slate-400 border border-slate-700 hover:text-white'
+          }`}
+        >
+          自定义
+        </button>
+        <span className="text-cyan-400 text-xs ml-1">{dateRange.label}</span>
+        {showCustom && (
+          <div className="flex items-center gap-2 ml-2">
+            <input
+              type="date"
+              value={customStart}
+              onChange={e => setCustomStart(e.target.value)}
+              className="h-7 rounded border border-slate-700 bg-[#1a2235] text-white px-2 text-xs"
+            />
+            <span className="text-slate-500 text-xs">~</span>
+            <input
+              type="date"
+              value={customEnd}
+              onChange={e => setCustomEnd(e.target.value)}
+              className="h-7 rounded border border-slate-700 bg-[#1a2235] text-white px-2 text-xs"
+            />
+            <button
+              onClick={applyCustom}
+              className="px-2 py-1 text-xs rounded bg-cyan-600 text-white hover:bg-cyan-500"
+            >
+              确定
+            </button>
+          </div>
+        )}
+      </div>
 
       {/* Main dashboard grid */}
       <main className="flex-1 p-4 grid gap-4" style={{
@@ -47,35 +148,14 @@ function Dashboard({ dateRange }: { dateRange: DateRange }) {
 }
 
 function App() {
-  const [dateRange, setDateRange] = useState<DateRange>(() => {
-    const end = new Date();
-    const start = new Date();
-    start.setDate(end.getDate() - 30);
-    return {
-      startDate: start.toISOString().split('T')[0],
-      endDate: end.toISOString().split('T')[0],
-      label: '最近30天',
-    };
-  });
-
-  const handleDateChange = (value: DateRangeValue) => {
-    setDateRange({
-      startDate: value.startDate,
-      endDate: value.endDate,
-      label: value.label,
-    });
-  };
-
   return (
     <BrowserRouter>
       <div className="min-h-screen grid-bg flex flex-col" style={{ background: '#080e1a' }}>
         {/* Scan line effect */}
         <div className="scanline" />
 
-        <TopBar dateRange={dateRange} onDateRangeChange={handleDateChange} />
-
         <Routes>
-          <Route path="/" element={<Dashboard dateRange={dateRange} />} />
+          <Route path="/" element={<Dashboard />} />
           <Route path="/admin" element={<AdminPage />} />
         </Routes>
       </div>
