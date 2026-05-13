@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import type { DateRange } from '../App';
+import { DateRangePicker, type DateRangeValue } from '../components/ui/date-range-picker';
 
 const API_BASE = 'http://47.103.58.81:8082/api/v1';
 
@@ -23,10 +24,11 @@ interface TokenUsage {
 }
 
 interface TopBarProps {
-  dateRange?: DateRange;
+  dateRange: DateRange;
+  onDateRangeChange?: (value: DateRangeValue) => void;
 }
 
-export const TopBar: React.FC<TopBarProps> = ({ dateRange }) => {
+export const TopBar: React.FC<TopBarProps> = ({ dateRange, onDateRangeChange }) => {
   const [time, setTime] = useState(new Date());
   const [announcements, setAnnouncements] = useState<string[]>([
     '📊 正在加载实时数据...',
@@ -146,8 +148,15 @@ export const TopBar: React.FC<TopBarProps> = ({ dateRange }) => {
           </div>
         </div>
 
-        {/* Right: Time + Nav */}
+        {/* Right: DateFilter + Time + Nav */}
         <div className="flex items-center gap-4">
+          {/* Date Range Picker — 仅在看板页面显示 */}
+          {!isAdmin && onDateRangeChange && (
+            <DateRangePicker
+              value={dateRange}
+              onChange={onDateRangeChange}
+            />
+          )}
           <div className="text-right">
             <div className="text-white font-mono text-lg font-semibold leading-tight" style={{ textShadow: '0 0 10px rgba(0,212,255,0.5)' }}>
               {dateStr} {timeStr}
