@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"strconv"
 	"strings"
+	"time"
 
 	"github.com/wan-admin/ai-efficiency-admin/internal/model"
 	"github.com/wan-admin/ai-efficiency-admin/internal/repository"
@@ -30,7 +31,7 @@ func (s *TokenUsageService) GetByID(ctx context.Context, id string) (*model.Toke
 	return s.repo.GetByID(ctx, id)
 }
 
-func (s *TokenUsageService) List(ctx context.Context, page, pageSize int, keyword string) (*model.TokenUsageListResponse, error) {
+func (s *TokenUsageService) List(ctx context.Context, page, pageSize int, keyword string, startDate, endDate *time.Time) (*model.TokenUsageListResponse, error) {
 	if page < 1 {
 		page = 1
 	}
@@ -38,7 +39,7 @@ func (s *TokenUsageService) List(ctx context.Context, page, pageSize int, keywor
 		pageSize = 20
 	}
 
-	items, total, err := s.repo.List(ctx, page, pageSize, keyword)
+	items, total, err := s.repo.List(ctx, page, pageSize, keyword, startDate, endDate)
 	if err != nil {
 		return nil, err
 	}
@@ -57,9 +58,9 @@ func (s *TokenUsageService) List(ctx context.Context, page, pageSize int, keywor
 	}, nil
 }
 
-// ListAll 获取所有记录（用于图表展示）
-func (s *TokenUsageService) ListAll(ctx context.Context) ([]model.TokenUsage, error) {
-	return s.repo.ListAll(ctx)
+// ListAll 获取聚合后的日均 Token 使用量（用于图表展示）
+func (s *TokenUsageService) ListAll(ctx context.Context, startDate, endDate *time.Time) ([]model.TokenUsageDaily, error) {
+	return s.repo.ListAggregated(ctx, startDate, endDate)
 }
 
 func (s *TokenUsageService) Update(ctx context.Context, id string, updates map[string]interface{}) error {
@@ -70,8 +71,8 @@ func (s *TokenUsageService) Delete(ctx context.Context, id string) error {
 	return s.repo.Delete(ctx, id)
 }
 
-// ImportFromExcel 从 Excel 文件导入数据（按 username upsert，不重复）
-func (s *TokenUsageService) ImportFromExcel(ctx context.Context, filePath string) (*model.TokenUsageImportResponse, error) {
+// ImportFromExcel 从 Excel 文件导入数据（按 username + date upsert）
+func (s *TokenUsageService) ImportFromExcel(ctx context.Context, filePath string, date *time.Time) (*model.TokenUsageImportResponse, error) {
 	f, err := excelize.OpenFile(filePath)
 	if err != nil {
 		return nil, fmt.Errorf("打开 Excel 文件失败: %w", err)
@@ -255,6 +256,7 @@ func (s *TokenUsageService) ImportFromExcel(ctx context.Context, filePath string
 			}
 		}
 
+		item.Date = date
 		items = append(items, item)
 	}
 

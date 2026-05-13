@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
+import type { DateRange } from '../App';
 
 const API_BASE = 'http://47.103.58.81:8082/api/v1';
 
@@ -30,7 +31,11 @@ const medalBgs = [
 const PAGE_SIZE = 10;
 const ROTATE_INTERVAL = 5000; // 5秒
 
-export const TokenRanking: React.FC = () => {
+interface TokenRankingProps {
+  dateRange: DateRange;
+}
+
+export const TokenRanking: React.FC<TokenRankingProps> = ({ dateRange }) => {
   const [members, setMembers] = useState<TokenUsageItem[]>([]);
   const [currentPage, setCurrentPage] = useState(0);
   const [loading, setLoading] = useState(true);
@@ -41,12 +46,17 @@ export const TokenRanking: React.FC = () => {
 
   const totalPages = Math.ceil(members.length / PAGE_SIZE);
   const displayMembers = members.slice(currentPage * PAGE_SIZE, (currentPage + 1) * PAGE_SIZE);
-  const maxTokens = members.length > 0 ? members[0].total_tokens : 1;
-  const totalTokens = members.reduce((s, m) => s + m.total_tokens, 0);
+  const maxTokens = members.length > 0 ? members[0].daily_tokens : 1;
+  const totalDailyTokens = members.reduce((s, m) => s + m.daily_tokens, 0);
 
   const fetchData = useCallback(async () => {
+    setLoading(true);
     try {
-      const res = await fetch(`${API_BASE}/token-usages/all`);
+      const params = new URLSearchParams();
+      if (dateRange.startDate) params.append('start_date', dateRange.startDate);
+      if (dateRange.endDate) params.append('end_date', dateRange.endDate);
+      const url = `${API_BASE}/token-usages/all${params.toString() ? '?' + params.toString() : ''}`;
+      const res = await fetch(url);
       const data = await res.json();
       if (data.code === 0) {
         setMembers(data.data || []);
@@ -59,7 +69,7 @@ export const TokenRanking: React.FC = () => {
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [dateRange]);
 
   // 数据刷新：每60秒
   useEffect(() => {
@@ -67,6 +77,11 @@ export const TokenRanking: React.FC = () => {
     const timer = setInterval(fetchData, 60000);
     return () => clearInterval(timer);
   }, [fetchData]);
+
+  // 日期范围变化时重置到第一页
+  useEffect(() => {
+    setCurrentPage(0);
+  }, [dateRange]);
 
   // 轮播：每5秒翻页（支持暂停）
   useEffect(() => {
@@ -90,18 +105,14 @@ export const TokenRanking: React.FC = () => {
     pauseUntilRef.current = Date.now() + 5000; // 点击后暂停轮播5秒
   };
 
-  // 数据刷新时重置到第一页
-  useEffect(() => {
-    setCurrentPage(0);
-  }, [members.length]);
-
-  if (loading) {
+  if (loading && members.length === 0) {
     return (
       <div className="dashboard-card glow-cyan h-full flex flex-col p-4">
         <div className="flex items-center justify-between mb-4">
           <div className="flex items-center gap-2">
             <div className="w-1 h-6 bg-cyan-400 rounded-full" style={{ boxShadow: '0 0 8px #00d4ff' }} />
-            <h2 className="text-white font-semibold text-base">Token 实时排行榜</h2>
+            <h2 className="text-white font-semibold text-base">Token 日均排行榜</h2>
+            <span className="text-slate-500 text-xs">{dateRange.label}</span>
           </div>
         </div>
         <div className="flex-1 flex items-center justify-center">
@@ -117,7 +128,8 @@ export const TokenRanking: React.FC = () => {
         <div className="flex items-center justify-between mb-4">
           <div className="flex items-center gap-2">
             <div className="w-1 h-6 bg-cyan-400 rounded-full" style={{ boxShadow: '0 0 8px #00d4ff' }} />
-            <h2 className="text-white font-semibold text-base">Token 实时排行榜</h2>
+            <h2 className="text-white font-semibold text-base">Token 日均排行榜</h2>
+            <span className="text-slate-500 text-xs">{dateRange.label}</span>
           </div>
         </div>
         <div className="flex-1 flex items-center justify-center flex-col gap-2">
@@ -133,8 +145,8 @@ export const TokenRanking: React.FC = () => {
       <div className="flex items-center justify-between mb-4">
         <div className="flex items-center gap-2">
           <div className="w-1 h-6 bg-cyan-400 rounded-full" style={{ boxShadow: '0 0 8px #00d4ff' }} />
-          <h2 className="text-white font-semibold text-base">Token 实时排行榜</h2>
-          <span className="text-slate-500 text-xs">今日累计</span>
+          <h2 className="text-white font-semibold text-base">Token 日均排行榜</h2>
+          <span className="text-slate-500 text-xs">{dateRange.label}</span>
         </div>
         <div className="flex items-center gap-1.5">
           <div className="w-1.5 h-1.5 rounded-full bg-green-400 animate-pulse" />
@@ -161,7 +173,7 @@ export const TokenRanking: React.FC = () => {
       <div ref={containerRef} className="flex-1 overflow-y-auto space-y-1.5 pr-1">
         {displayMembers.map((member) => {
           const rank = member.rank;
-          const pct = maxTokens > 0 ? (member.total_tokens / maxTokens) * 100 : 0;
+          const pct = maxTokens > 0 ? (member.daily_tokens / maxTokens) * 100 : 0;
           const isTop3 = rank <= 3;
 
           return (
@@ -209,7 +221,7 @@ export const TokenRanking: React.FC = () => {
                   className={`font-mono text-sm font-semibold ${isTop3 ? 'text-cyan-300' : 'text-slate-300'}`}
                   style={isTop3 ? { textShadow: '0 0 8px rgba(0,212,255,0.6)' } : {}}
                 >
-                  {formatTokens(member.total_tokens)}
+                  {formatTokens(member.daily_tokens)}
                 </span>
                 <span className="text-slate-600 text-xs font-mono">{member.request_count.toLocaleString()} 次</span>
               </div>
@@ -227,7 +239,7 @@ export const TokenRanking: React.FC = () => {
             </span>
           )}
         </span>
-        <span className="font-mono">今日总计：{formatTokens(totalTokens)}</span>
+        <span className="font-mono">日均总计：{formatTokens(totalDailyTokens)}</span>
       </div>
     </div>
   );

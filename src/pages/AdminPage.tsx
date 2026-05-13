@@ -44,6 +44,7 @@ interface TokenUsage {
   request_count: number;
   cost: number;
   import_batch: string;
+  date: string;
   created_at: string;
 }
 
@@ -117,6 +118,10 @@ export const AdminPage: React.FC = () => {
   const [batches, setBatches] = useState<string[]>([]);
   const [isImportOpen, setIsImportOpen] = useState(false);
   const [importFile, setImportFile] = useState<File | null>(null);
+  const [importDate, setImportDate] = useState(() => {
+    const today = new Date();
+    return today.toISOString().split('T')[0];
+  });
   const [importLoading, setImportLoading] = useState(false);
   const [importResult, setImportResult] = useState<ImportResult | null>(null);
   const [isImportResultOpen, setIsImportResultOpen] = useState(false);
@@ -389,10 +394,15 @@ export const AdminPage: React.FC = () => {
       alert('请选择文件');
       return;
     }
+    if (!importDate) {
+      alert('请选择数据日期');
+      return;
+    }
     setImportLoading(true);
     try {
       const formData = new FormData();
       formData.append('file', importFile);
+      formData.append('date', importDate);
       const res = await fetch(`${API_BASE}/token-usages/import`, {
         method: 'POST',
         headers: { Authorization: `Bearer ${token}` },
@@ -789,7 +799,7 @@ export const AdminPage: React.FC = () => {
                       <TableHead className="text-slate-400">日均 Tokens</TableHead>
                       <TableHead className="text-slate-400">请求次数</TableHead>
                       <TableHead className="text-slate-400">费用</TableHead>
-                      <TableHead className="text-slate-400">批次</TableHead>
+                      <TableHead className="text-slate-400">数据日期</TableHead>
                       <TableHead className="text-slate-400">操作</TableHead>
                     </TableRow>
                   </TableHeader>
@@ -816,7 +826,7 @@ export const AdminPage: React.FC = () => {
                           <TableCell className="text-slate-300 font-mono">{formatTokens(item.daily_tokens)}</TableCell>
                           <TableCell className="text-slate-300 font-mono">{item.request_count.toLocaleString()}</TableCell>
                           <TableCell className="text-amber-300 font-mono">¥{item.cost.toFixed(2)}</TableCell>
-                          <TableCell className="text-slate-500 text-xs">{item.import_batch}</TableCell>
+                          <TableCell className="text-slate-500 text-xs">{item.date ? new Date(item.date).toLocaleDateString() : '-'}</TableCell>
                           <TableCell>
                             <button onClick={() => handleTokenUsageDelete(item.id)} className="text-red-400 hover:text-red-300 text-sm">删除</button>
                           </TableCell>
@@ -995,6 +1005,16 @@ export const AdminPage: React.FC = () => {
             </DialogDescription>
           </DialogHeader>
           <div className="space-y-4 py-4">
+            <div>
+              <label className="text-sm text-slate-400 mb-1 block">数据日期 <span className="text-red-400">*</span></label>
+              <input
+                type="date"
+                value={importDate}
+                onChange={e => setImportDate(e.target.value)}
+                className="w-full h-9 rounded-md border border-slate-700 bg-[#1a2235] text-white px-3 text-sm"
+              />
+              <p className="text-slate-600 text-xs mt-1">此 Excel 文件代表的是哪一天的 Token 使用量数据</p>
+            </div>
             <div
               className="border-2 border-dashed border-slate-700 rounded-lg p-6 text-center cursor-pointer hover:border-cyan-500/50 transition-colors"
               onClick={() => fileInputRef.current?.click()}

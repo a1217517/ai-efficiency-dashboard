@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
+import type { DateRange } from '../App';
 
 const API_BASE = 'http://47.103.58.81:8082/api/v1';
 
@@ -21,7 +22,11 @@ interface TokenUsage {
   role_category: string;
 }
 
-export const TopBar: React.FC = () => {
+interface TopBarProps {
+  dateRange?: DateRange;
+}
+
+export const TopBar: React.FC<TopBarProps> = ({ dateRange }) => {
   const [time, setTime] = useState(new Date());
   const [announcements, setAnnouncements] = useState<string[]>([
     '📊 正在加载实时数据...',
@@ -38,10 +43,15 @@ export const TopBar: React.FC = () => {
 
   const fetchTickerData = useCallback(async () => {
     try {
+      const tokenParams = new URLSearchParams();
+      if (dateRange?.startDate) tokenParams.append('start_date', dateRange.startDate);
+      if (dateRange?.endDate) tokenParams.append('end_date', dateRange.endDate);
+      const tokenUrl = `${API_BASE}/token-usages/all${tokenParams.toString() ? '?' + tokenParams.toString() : ''}`;
+
       const [siliconRes, savingsRes, tokenRes] = await Promise.all([
         fetch(`${API_BASE}/silicon-contents/stats`).catch(() => null),
         fetch(`${API_BASE}/team-savings/all`).catch(() => null),
-        fetch(`${API_BASE}/token-usages/all`).catch(() => null),
+        fetch(tokenUrl).catch(() => null),
       ]);
 
       const msgs: string[] = [];
@@ -101,7 +111,7 @@ export const TopBar: React.FC = () => {
     } catch (err) {
       console.error('Ticker fetch error:', err);
     }
-  }, []);
+  }, [dateRange]);
 
   useEffect(() => {
     fetchTickerData();

@@ -48,7 +48,19 @@ func (h *TokenUsageHandler) List(c *gin.Context) {
 	}
 	keyword := c.Query("keyword")
 
-	resp, err := h.service.List(c.Request.Context(), page, pageSize, keyword)
+	var startDate, endDate *time.Time
+	if sd := c.Query("start_date"); sd != "" {
+		if d, err := time.Parse("2006-01-02", sd); err == nil {
+			startDate = &d
+		}
+	}
+	if ed := c.Query("end_date"); ed != "" {
+		if d, err := time.Parse("2006-01-02", ed); err == nil {
+			endDate = &d
+		}
+	}
+
+	resp, err := h.service.List(c.Request.Context(), page, pageSize, keyword, startDate, endDate)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"code": 500, "message": err.Error()})
 		return
@@ -57,9 +69,21 @@ func (h *TokenUsageHandler) List(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{"code": 0, "data": resp})
 }
 
-// ListAll 获取所有记录（公开接口，用于图表展示）
+// ListAll 获取聚合后的日均 Token 使用量（公开接口，用于图表展示）
 func (h *TokenUsageHandler) ListAll(c *gin.Context) {
-	items, err := h.service.ListAll(c.Request.Context())
+	var startDate, endDate *time.Time
+	if sd := c.Query("start_date"); sd != "" {
+		if d, err := time.Parse("2006-01-02", sd); err == nil {
+			startDate = &d
+		}
+	}
+	if ed := c.Query("end_date"); ed != "" {
+		if d, err := time.Parse("2006-01-02", ed); err == nil {
+			endDate = &d
+		}
+	}
+
+	items, err := h.service.ListAll(c.Request.Context(), startDate, endDate)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"code": 500, "message": err.Error()})
 		return
@@ -171,6 +195,18 @@ func (h *TokenUsageHandler) ImportExcel(c *gin.Context) {
 		}
 	}
 
+	// 解析日期参数
+	dateStr := c.PostForm("date")
+	if dateStr == "" {
+		c.JSON(http.StatusBadRequest, gin.H{"code": 400, "message": "请选择数据日期"})
+		return
+	}
+	date, err := time.Parse("2006-01-02", dateStr)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"code": 400, "message": "日期格式错误，请使用 YYYY-MM-DD"})
+		return
+	}
+
 	// 保存临时文件
 	tmpDir := os.TempDir()
 	tmpPath := fmt.Sprintf("%s/token_usage_%s.xlsx", tmpDir, strconv.FormatInt(time.Now().UnixNano(), 10))
@@ -181,7 +217,7 @@ func (h *TokenUsageHandler) ImportExcel(c *gin.Context) {
 	defer os.Remove(tmpPath)
 
 	// 导入数据
-	result, err := h.service.ImportFromExcel(c.Request.Context(), tmpPath)
+	result, err := h.service.ImportFromExcel(c.Request.Context(), tmpPath, &date)
 	if err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"code": 400, "message": "导入失败: " + err.Error()})
 		return

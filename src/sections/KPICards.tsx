@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useCallback } from 'react';
+import type { DateRange } from '../App';
 
 const API_BASE = 'http://47.103.58.81:8082/api/v1';
 
@@ -32,17 +33,26 @@ const formatTokens = (n: number): string => {
   return n.toString();
 };
 
-export const KPICards: React.FC = () => {
+interface KPICardsProps {
+  dateRange: DateRange;
+}
+
+export const KPICards: React.FC<KPICardsProps> = ({ dateRange }) => {
   const [siliconStats, setSiliconStats] = useState<SiliconStats | null>(null);
   const [teamSavings, setTeamSavings] = useState<TeamSaving[]>([]);
   const [tokenUsages, setTokenUsages] = useState<TokenUsageItem[]>([]);
 
   const fetchStats = useCallback(async () => {
     try {
+      const tokenParams = new URLSearchParams();
+      if (dateRange.startDate) tokenParams.append('start_date', dateRange.startDate);
+      if (dateRange.endDate) tokenParams.append('end_date', dateRange.endDate);
+      const tokenUrl = `${API_BASE}/token-usages/all${tokenParams.toString() ? '?' + tokenParams.toString() : ''}`;
+
       const [siliconRes, savingsRes, tokenRes] = await Promise.all([
         fetch(`${API_BASE}/silicon-contents/stats`),
         fetch(`${API_BASE}/team-savings/all`),
-        fetch(`${API_BASE}/token-usages/all`),
+        fetch(tokenUrl),
       ]);
       const siliconData = await siliconRes.json();
       const savingsData = await savingsRes.json();
@@ -89,9 +99,9 @@ export const KPICards: React.FC = () => {
       glow: 'rgba(0,212,255,0.5)',
     },
     {
-      label: 'Token 使用量',
+      label: 'Token 日均使用量',
       value: tokenUsages.length > 0 ? formatTokens(totalTokens) : '--',
-      change: tokenUsages.length > 0 ? `${tokenUsages.length} 人参与` : '',
+      change: tokenUsages.length > 0 ? `${tokenUsages.length} 人参与 · ${dateRange.label}` : '',
       changeType: 'up' as const,
       subLabel: '累计统计',
       color: 'blue' as const,
