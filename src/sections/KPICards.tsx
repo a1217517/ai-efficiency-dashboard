@@ -71,7 +71,7 @@ export const KPICards: React.FC<KPICardsProps> = ({ dateRange }) => {
     } catch (err) {
       console.error(err);
     }
-  }, []);
+  }, [dateRange]);
 
   useEffect(() => {
     fetchStats();
