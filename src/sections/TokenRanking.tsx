@@ -227,7 +227,6 @@ export const TokenRanking: React.FC<TokenRankingProps> = ({ dateRange }) => {
                 <span className="text-[11px] text-slate-500 font-mono">
                   {formatTokens(member.total_tokens)}
                   <span className="text-[10px] text-slate-600 font-normal ml-0.5">总计</span>
-                  <span className="text-slate-600 text-[10px] ml-1.5">{member.request_count.toLocaleString()}次</span>
                 </span>
               </div>
             </div>
