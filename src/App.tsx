@@ -26,7 +26,7 @@ function Dashboard({ dateRange }: { dateRange: DateRange }) {
         minHeight: 0,
       }}>
         <div style={{ gridRow: '1 / 2', gridColumn: '1 / 2' }}>
-          <PRSiliconChart />
+          <PRSiliconChart dateRange={dateRange} />
         </div>
         <div style={{ gridRow: '1 / 2', gridColumn: '2 / 3' }}>
           <TokenRanking dateRange={dateRange} />

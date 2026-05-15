@@ -1,4 +1,5 @@
-import React, { useState, useEffect, useRef, useCallback } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
+import type { DateRange } from '../App';
 
 const API_BASE = 'http://47.103.58.81:8082/api/v1';
 
@@ -13,7 +14,6 @@ interface SiliconContentItem {
 }
 
 const PAGE_SIZE = 10;
-const ROTATE_INTERVAL = 5000; // 5秒
 
 const medalColors = ['#FFD700', '#C0C0C0', '#CD7F32'];
 const medalBgs = [
@@ -40,13 +40,15 @@ const formatLines = (n: number): string => {
   return n.toString();
 };
 
-export const PRSiliconChart: React.FC = () => {
+interface PRSiliconChartProps {
+  dateRange: DateRange;
+}
+
+export const PRSiliconChart: React.FC<PRSiliconChartProps> = ({ dateRange }) => {
   const [members, setMembers] = useState<SiliconContentItem[]>([]);
   const [currentPage, setCurrentPage] = useState(0);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const pauseUntilRef = useRef<number>(0);
-  const rotateTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
   const totalPages = Math.ceil(members.length / PAGE_SIZE);
   const displayMembers = members.slice(currentPage * PAGE_SIZE, (currentPage + 1) * PAGE_SIZE);
@@ -54,8 +56,13 @@ export const PRSiliconChart: React.FC = () => {
   const totalAILines = members.reduce((s, m) => s + m.ai_lines, 0);
 
   const fetchData = useCallback(async () => {
+    setLoading(true);
     try {
-      const res = await fetch(`${API_BASE}/silicon-contents/all`);
+      const params = new URLSearchParams();
+      if (dateRange.startDate) params.append('start_date', dateRange.startDate);
+      if (dateRange.endDate) params.append('end_date', dateRange.endDate);
+      const url = `${API_BASE}/silicon-contents/all${params.toString() ? '?' + params.toString() : ''}`;
+      const res = await fetch(url);
       const data = await res.json();
       if (data.code === 0) {
         setMembers(data.data || []);
@@ -68,7 +75,7 @@ export const PRSiliconChart: React.FC = () => {
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [dateRange]);
 
   // 数据刷新：每60秒
   useEffect(() => {
@@ -77,32 +84,14 @@ export const PRSiliconChart: React.FC = () => {
     return () => clearInterval(timer);
   }, [fetchData]);
 
-  // 轮播：每5秒翻页（支持暂停）
-  useEffect(() => {
-    if (members.length <= PAGE_SIZE) return;
-    if (rotateTimerRef.current) clearInterval(rotateTimerRef.current);
-    rotateTimerRef.current = setInterval(() => {
-      const now = Date.now();
-      if (now < pauseUntilRef.current) return;
-      setCurrentPage(prev => {
-        const next = prev + 1;
-        return next >= totalPages ? 0 : next;
-      });
-    }, ROTATE_INTERVAL);
-    return () => {
-      if (rotateTimerRef.current) clearInterval(rotateTimerRef.current);
-    };
-  }, [members.length, totalPages]);
-
   const handleDotClick = (pageIndex: number) => {
     setCurrentPage(pageIndex);
-    pauseUntilRef.current = Date.now() + 5000; // 点击后暂停轮播5秒
   };
 
-  // 数据刷新时重置到第一页
+  // 日期范围变化时重置到第一页
   useEffect(() => {
     setCurrentPage(0);
-  }, [members.length]);
+  }, [dateRange]);
 
   if (loading) {
     return (
@@ -143,7 +132,7 @@ export const PRSiliconChart: React.FC = () => {
         <div className="flex items-center gap-2">
           <div className="w-1 h-6 bg-blue-400 rounded-full" style={{ boxShadow: '0 0 8px #00d4ff' }} />
           <h2 className="text-white font-semibold text-base">PR 硅含量</h2>
-          <span className="text-slate-500 text-xs">全员排行</span>
+          <span className="text-slate-500 text-xs">{dateRange.label}</span>
         </div>
         <div className="flex items-center gap-1.5">
           <div className="w-1.5 h-1.5 rounded-full bg-green-400 animate-pulse" />
@@ -231,7 +220,7 @@ export const PRSiliconChart: React.FC = () => {
           共 {members.length} 人参与
           {totalPages > 1 && (
             <span className="ml-2 text-blue-500">
-              第 {currentPage + 1}/{totalPages} 页 · 5s 轮播
+              第 {currentPage + 1}/{totalPages} 页
             </span>
           )}
         </span>

@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef, useCallback } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import type { DateRange } from '../App';
 
 const API_BASE = 'http://47.103.58.81:8082/api/v1';
@@ -29,7 +29,6 @@ const medalBgs = [
 ];
 
 const PAGE_SIZE = 10;
-const ROTATE_INTERVAL = 5000; // 5秒
 
 interface TokenRankingProps {
   dateRange: DateRange;
@@ -40,9 +39,6 @@ export const TokenRanking: React.FC<TokenRankingProps> = ({ dateRange }) => {
   const [currentPage, setCurrentPage] = useState(0);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const containerRef = useRef<HTMLDivElement>(null);
-  const pauseUntilRef = useRef<number>(0);
-  const rotateTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
   const totalPages = Math.ceil(members.length / PAGE_SIZE);
   const displayMembers = members.slice(currentPage * PAGE_SIZE, (currentPage + 1) * PAGE_SIZE);
@@ -83,26 +79,8 @@ export const TokenRanking: React.FC<TokenRankingProps> = ({ dateRange }) => {
     setCurrentPage(0);
   }, [dateRange]);
 
-  // 轮播：每5秒翻页（支持暂停）
-  useEffect(() => {
-    if (members.length <= PAGE_SIZE) return;
-    if (rotateTimerRef.current) clearInterval(rotateTimerRef.current);
-    rotateTimerRef.current = setInterval(() => {
-      const now = Date.now();
-      if (now < pauseUntilRef.current) return;
-      setCurrentPage(prev => {
-        const next = prev + 1;
-        return next >= totalPages ? 0 : next;
-      });
-    }, ROTATE_INTERVAL);
-    return () => {
-      if (rotateTimerRef.current) clearInterval(rotateTimerRef.current);
-    };
-  }, [members.length, totalPages]);
-
   const handleDotClick = (pageIndex: number) => {
     setCurrentPage(pageIndex);
-    pauseUntilRef.current = Date.now() + 5000; // 点击后暂停轮播5秒
   };
 
   if (loading && members.length === 0) {
@@ -170,7 +148,7 @@ export const TokenRanking: React.FC<TokenRankingProps> = ({ dateRange }) => {
         </div>
       )}
 
-      <div ref={containerRef} className="flex-1 overflow-y-auto space-y-1.5 pr-1">
+      <div className="flex-1 overflow-y-auto space-y-1.5 pr-1">
         {displayMembers.map((member) => {
           const rank = member.rank;
           const pct = maxTokens > 0 ? (member.daily_tokens / maxTokens) * 100 : 0;
@@ -239,7 +217,7 @@ export const TokenRanking: React.FC<TokenRankingProps> = ({ dateRange }) => {
           共 {members.length} 人参与
           {totalPages > 1 && (
             <span className="ml-2 text-cyan-500">
-              第 {currentPage + 1}/{totalPages} 页 · 5s 轮播
+              第 {currentPage + 1}/{totalPages} 页
             </span>
           )}
         </span>

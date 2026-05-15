@@ -50,8 +50,13 @@ export const KPICards: React.FC<KPICardsProps> = ({ dateRange }) => {
       if (dateRange.endDate) tokenParams.append('end_date', dateRange.endDate);
       const tokenUrl = `${API_BASE}/token-usages/all${tokenParams.toString() ? '?' + tokenParams.toString() : ''}`;
 
+      const siliconParams = new URLSearchParams();
+      if (dateRange.startDate) siliconParams.append('start_date', dateRange.startDate);
+      if (dateRange.endDate) siliconParams.append('end_date', dateRange.endDate);
+      const siliconUrl = `${API_BASE}/silicon-contents/stats${siliconParams.toString() ? '?' + siliconParams.toString() : ''}`;
+
       const [siliconRes, savingsRes, tokenRes] = await Promise.all([
-        fetch(`${API_BASE}/silicon-contents/stats`),
+        fetch(siliconUrl),
         fetch(`${API_BASE}/team-savings/all`),
         fetch(tokenUrl),
       ]);

@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"strconv"
 	"strings"
+	"time"
 
 	"github.com/xuri/excelize/v2"
 	"github.com/wan-admin/ai-efficiency-admin/internal/model"
@@ -47,8 +48,8 @@ func (s *SiliconContentService) List(ctx context.Context, page, pageSize int, ke
 	}, nil
 }
 
-func (s *SiliconContentService) ListAll(ctx context.Context) ([]model.SiliconContent, error) {
-	return s.repo.ListAll(ctx)
+func (s *SiliconContentService) ListAll(ctx context.Context, startDate, endDate *time.Time) ([]model.SiliconContentDaily, error) {
+	return s.repo.ListAggregated(ctx, startDate, endDate)
 }
 
 func (s *SiliconContentService) Update(ctx context.Context, id string, updates map[string]interface{}) error {
@@ -59,12 +60,12 @@ func (s *SiliconContentService) Delete(ctx context.Context, id string) error {
 	return s.repo.Delete(ctx, id)
 }
 
-func (s *SiliconContentService) GetStats(ctx context.Context) (*model.SiliconContentStats, error) {
-	return s.repo.GetStats(ctx)
+func (s *SiliconContentService) GetStats(ctx context.Context, startDate, endDate *time.Time) (*model.SiliconContentStats, error) {
+	return s.repo.GetStats(ctx, startDate, endDate)
 }
 
-// ImportExcel 从 Excel 导入硅含量数据
-func (s *SiliconContentService) ImportExcel(ctx context.Context, filePath string) (*model.SiliconContentImportResponse, error) {
+// ImportExcel 从 Excel 导入硅含量数据（按 username + date upsert）
+func (s *SiliconContentService) ImportExcel(ctx context.Context, filePath string, date *time.Time) (*model.SiliconContentImportResponse, error) {
 	f, err := excelize.OpenFile(filePath)
 	if err != nil {
 		return nil, fmt.Errorf("无法打开 Excel 文件: %v", err)
@@ -145,6 +146,7 @@ func (s *SiliconContentService) ImportExcel(ctx context.Context, filePath string
 			SiliconPercentage: siliconPct,
 			AILines:           aiLines,
 			TotalLines:        totalLines,
+			Date:              date,
 		})
 	}
 

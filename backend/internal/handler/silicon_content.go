@@ -1,8 +1,11 @@
 package handler
 
 import (
+	"fmt"
 	"net/http"
+	"os"
 	"strconv"
+	"time"
 
 	"github.com/gin-gonic/gin"
 	"github.com/wan-admin/ai-efficiency-admin/internal/model"
@@ -39,9 +42,21 @@ func (h *SiliconContentHandler) List(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{"code": 0, "message": "success", "data": resp})
 }
 
-// ListAll 获取所有记录（公开接口，用于图表展示）
+// ListAll 获取聚合后的日均硅含量（公开接口，用于图表展示）
 func (h *SiliconContentHandler) ListAll(c *gin.Context) {
-	items, err := h.service.ListAll(c.Request.Context())
+	var startDate, endDate *time.Time
+	if sd := c.Query("start_date"); sd != "" {
+		if d, err := time.Parse("2006-01-02", sd); err == nil {
+			startDate = &d
+		}
+	}
+	if ed := c.Query("end_date"); ed != "" {
+		if d, err := time.Parse("2006-01-02", ed); err == nil {
+			endDate = &d
+		}
+	}
+
+	items, err := h.service.ListAll(c.Request.Context(), startDate, endDate)
 	if err != nil {
 		c.JSON(http.StatusOK, gin.H{"code": 500, "message": err.Error()})
 		return
@@ -108,7 +123,19 @@ func (h *SiliconContentHandler) Delete(c *gin.Context) {
 
 // Stats 获取统计数据
 func (h *SiliconContentHandler) Stats(c *gin.Context) {
-	stats, err := h.service.GetStats(c.Request.Context())
+	var startDate, endDate *time.Time
+	if sd := c.Query("start_date"); sd != "" {
+		if d, err := time.Parse("2006-01-02", sd); err == nil {
+			startDate = &d
+		}
+	}
+	if ed := c.Query("end_date"); ed != "" {
+		if d, err := time.Parse("2006-01-02", ed); err == nil {
+			endDate = &d
+		}
+	}
+
+	stats, err := h.service.GetStats(c.Request.Context(), startDate, endDate)
 	if err != nil {
 		c.JSON(http.StatusOK, gin.H{"code": 500, "message": err.Error()})
 		return
@@ -126,16 +153,27 @@ func (h *SiliconContentHandler) ImportExcel(c *gin.Context) {
 	}
 
 	// 保存临时文件
-	tempPath := "/tmp/silicon_content_import_" + file.Filename
-	if err := c.SaveUploadedFile(file, tempPath); err != nil {
+	tmpDir := os.TempDir()
+	tmpPath := fmt.Sprintf("%s/silicon_content_%s.xlsx", tmpDir, strconv.FormatInt(time.Now().UnixNano(), 10))
+	if err := c.SaveUploadedFile(file, tmpPath); err != nil {
 		c.JSON(http.StatusOK, gin.H{"code": 500, "message": "保存文件失败"})
 		return
 	}
-	defer func() {
-		_ = func() error { return nil }()
-	}()
+	defer os.Remove(tmpPath)
 
-	result, err := h.service.ImportExcel(c.Request.Context(), tempPath)
+	// 解析日期参数
+	dateStr := c.PostForm("date")
+	if dateStr == "" {
+		c.JSON(http.StatusOK, gin.H{"code": 400, "message": "请选择数据日期"})
+		return
+	}
+	date, err := time.Parse("2006-01-02", dateStr)
+	if err != nil {
+		c.JSON(http.StatusOK, gin.H{"code": 400, "message": "日期格式错误，请使用 YYYY-MM-DD"})
+		return
+	}
+
+	result, err := h.service.ImportExcel(c.Request.Context(), tmpPath, &date)
 	if err != nil {
 		c.JSON(http.StatusOK, gin.H{"code": 500, "message": err.Error()})
 		return

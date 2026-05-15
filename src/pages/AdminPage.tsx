@@ -56,6 +56,7 @@ interface SiliconContent {
   silicon_percentage: number;
   ai_lines: number;
   total_lines: number;
+  date: string;
   created_at: string;
 }
 
@@ -136,6 +137,10 @@ export const AdminPage: React.FC = () => {
   const [siliconLoading, setSiliconLoading] = useState(false);
   const [isSiliconImportOpen, setIsSiliconImportOpen] = useState(false);
   const [siliconImportFile, setSiliconImportFile] = useState<File | null>(null);
+  const [siliconImportDate, setSiliconImportDate] = useState(() => {
+    const today = new Date();
+    return today.toISOString().split('T')[0];
+  });
   const [siliconImportLoading, setSiliconImportLoading] = useState(false);
   const [siliconImportResult, setSiliconImportResult] = useState<ImportResult | null>(null);
   const [isSiliconImportResultOpen, setIsSiliconImportResultOpen] = useState(false);
@@ -502,10 +507,15 @@ export const AdminPage: React.FC = () => {
       alert('请选择文件');
       return;
     }
+    if (!siliconImportDate) {
+      alert('请选择数据日期');
+      return;
+    }
     setSiliconImportLoading(true);
     try {
       const formData = new FormData();
       formData.append('file', siliconImportFile);
+      formData.append('date', siliconImportDate);
       const res = await fetch(`${API_BASE}/silicon-contents/import`, {
         method: 'POST',
         headers: { Authorization: `Bearer ${token}` },
@@ -872,6 +882,7 @@ export const AdminPage: React.FC = () => {
                       <TableHead className="text-slate-400">硅基含量</TableHead>
                       <TableHead className="text-slate-400">AI 代码量</TableHead>
                       <TableHead className="text-slate-400">总代码量</TableHead>
+                      <TableHead className="text-slate-400">数据日期</TableHead>
                       <TableHead className="text-slate-400">操作</TableHead>
                     </TableRow>
                   </TableHeader>
@@ -897,6 +908,7 @@ export const AdminPage: React.FC = () => {
                           <TableCell className="text-cyan-300 font-mono">{item.silicon_percentage.toFixed(2)}%</TableCell>
                           <TableCell className="text-slate-300 font-mono">{item.ai_lines.toLocaleString()}</TableCell>
                           <TableCell className="text-slate-300 font-mono">{item.total_lines.toLocaleString()}</TableCell>
+                          <TableCell className="text-slate-500 text-xs">{item.date ? new Date(item.date).toLocaleDateString() : '-'}</TableCell>
                           <TableCell>
                             <button onClick={() => handleSiliconDelete(item.id)} className="text-red-400 hover:text-red-300 text-sm">删除</button>
                           </TableCell>
@@ -930,6 +942,16 @@ export const AdminPage: React.FC = () => {
             </DialogDescription>
           </DialogHeader>
           <div className="space-y-4 py-4">
+            <div>
+              <label className="text-sm text-slate-400 mb-1 block">数据日期 <span className="text-red-400">*</span></label>
+              <input
+                type="date"
+                value={siliconImportDate}
+                onChange={e => setSiliconImportDate(e.target.value)}
+                className="w-full h-9 rounded-md border border-slate-700 bg-[#1a2235] text-white px-3 text-sm"
+              />
+              <p className="text-slate-600 text-xs mt-1">此 Excel 文件代表的是哪一天的硅含量数据</p>
+            </div>
             <div
               className="border-2 border-dashed border-slate-700 rounded-lg p-6 text-center cursor-pointer hover:border-cyan-500/50 transition-colors"
               onClick={() => siliconFileInputRef.current?.click()}

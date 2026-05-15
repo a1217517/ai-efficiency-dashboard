@@ -3,6 +3,7 @@ package repository
 import (
 	"context"
 	"fmt"
+	"time"
 
 	"github.com/wan-admin/ai-efficiency-admin/internal/model"
 	"gorm.io/gorm"
@@ -21,26 +22,28 @@ func (r *SiliconContentRepository) Create(ctx context.Context, s *model.SiliconC
 	return r.db.WithContext(ctx).Create(s).Error
 }
 
-// BatchUpsert 批量 upsert（按 username 唯一键，存在更新，不存在插入）
+// BatchUpsert 批量 upsert（按 username + date 联合唯一键，存在更新，不存在插入）
 func (r *SiliconContentRepository) BatchUpsert(ctx context.Context, items []*model.SiliconContent) (inserted int64, updated int64, err error) {
 	if len(items) == 0 {
 		return 0, 0, nil
 	}
 
-	usernames := make([]string, 0, len(items))
-	for _, item := range items {
-		usernames = append(usernames, item.Username)
-	}
-
+	// 统计已存在的记录数（按 username + date）
 	var existingCount int64
-	if err := r.db.WithContext(ctx).Model(&model.SiliconContent{}).
-		Where("username IN ?", usernames).
-		Count(&existingCount).Error; err != nil {
-		return 0, 0, err
+	for _, item := range items {
+		if item.Date != nil {
+			var count int64
+			if err := r.db.WithContext(ctx).Model(&model.SiliconContent{}).
+				Where("username = ? AND date = ?", item.Username, item.Date).
+				Count(&count).Error; err != nil {
+				return 0, 0, err
+			}
+			existingCount += count
+		}
 	}
 
 	result := r.db.WithContext(ctx).Clauses(clause.OnConflict{
-		Columns:   []clause.Column{{Name: "username"}},
+		Columns:   []clause.Column{{Name: "username"}, {Name: "date"}},
 		DoUpdates: clause.AssignmentColumns([]string{
 			"rank", "role_category", "silicon_percentage", "ai_lines", "total_lines",
 		}),
@@ -87,10 +90,26 @@ func (r *SiliconContentRepository) List(ctx context.Context, page, pageSize int,
 	return items, total, nil
 }
 
-// ListAll 获取所有记录（不分页，用于图表展示）
-func (r *SiliconContentRepository) ListAll(ctx context.Context) ([]model.SiliconContent, error) {
-	var items []model.SiliconContent
-	err := r.db.WithContext(ctx).Model(&model.SiliconContent{}).Order("rank ASC, silicon_percentage DESC").Find(&items).Error
+// ListAggregated 按用户聚合查询日均硅含量（支持日期范围过滤）
+func (r *SiliconContentRepository) ListAggregated(ctx context.Context, startDate, endDate *time.Time) ([]model.SiliconContentDaily, error) {
+	var items []model.SiliconContentDaily
+
+	err := r.db.WithContext(ctx).Raw(`
+		SELECT 
+			username AS id,
+			username,
+			role_category,
+			(COALESCE(AVG(silicon_percentage), 0))::double precision AS silicon_percentage,
+			COALESCE(SUM(ai_lines), 0)::bigint AS ai_lines,
+			COALESCE(SUM(total_lines), 0)::bigint AS total_lines,
+			ROW_NUMBER() OVER (ORDER BY COALESCE(AVG(silicon_percentage), 0) DESC)::int AS rank
+		FROM silicon_contents
+		WHERE ($1::date IS NULL OR date >= $1::date)
+		  AND ($2::date IS NULL OR date <= $2::date)
+		GROUP BY username, role_category
+		ORDER BY silicon_percentage DESC
+	`, startDate, endDate).Scan(&items).Error
+
 	return items, err
 }
 
@@ -117,19 +136,27 @@ func (r *SiliconContentRepository) Delete(ctx context.Context, id string) error 
 	return nil
 }
 
-// GetStats 获取硅含量统计数据
-func (r *SiliconContentRepository) GetStats(ctx context.Context) (*model.SiliconContentStats, error) {
+// GetStats 获取硅含量统计数据（支持日期范围过滤）
+func (r *SiliconContentRepository) GetStats(ctx context.Context, startDate, endDate *time.Time) (*model.SiliconContentStats, error) {
 	var stats model.SiliconContentStats
 
-	// 总人数
-	if err := r.db.WithContext(ctx).Model(&model.SiliconContent{}).Count(&stats.TotalMembers).Error; err != nil {
+	// 总人数（去重）
+	if err := r.db.WithContext(ctx).Model(&model.SiliconContent{}).
+		Select("COUNT(DISTINCT username)").
+		Where("($1::date IS NULL OR date >= $1::date) AND ($2::date IS NULL OR date <= $2::date)", startDate, endDate).
+		Scan(&stats.TotalMembers).Error; err != nil {
 		return nil, err
 	}
 
-	// 平均硅含量
-	if err := r.db.WithContext(ctx).Model(&model.SiliconContent{}).
-		Select("COALESCE(AVG(silicon_percentage), 0)").
-		Scan(&stats.AvgSiliconPct).Error; err != nil {
+	// 平均硅含量（所有人的日均均值）
+	if err := r.db.WithContext(ctx).Raw(`
+		SELECT COALESCE(AVG(user_avg), 0)::double precision FROM (
+			SELECT AVG(silicon_percentage) AS user_avg
+			FROM silicon_contents
+			WHERE ($1::date IS NULL OR date >= $1::date) AND ($2::date IS NULL OR date <= $2::date)
+			GROUP BY username
+		) t
+	`, startDate, endDate).Scan(&stats.AvgSiliconPct).Error; err != nil {
 		return nil, err
 	}
 
@@ -140,6 +167,7 @@ func (r *SiliconContentRepository) GetStats(ctx context.Context) (*model.Silicon
 	}
 	if err := r.db.WithContext(ctx).Model(&model.SiliconContent{}).
 		Select("COALESCE(SUM(ai_lines), 0) as total_ai_lines, COALESCE(SUM(total_lines), 0) as total_lines").
+		Where("($1::date IS NULL OR date >= $1::date) AND ($2::date IS NULL OR date <= $2::date)", startDate, endDate).
 		Scan(&sums).Error; err != nil {
 		return nil, err
 	}
@@ -152,10 +180,21 @@ func (r *SiliconContentRepository) GetStats(ctx context.Context) (*model.Silicon
 
 	// 职类分布统计
 	var roleStats []model.RoleStat
-	if err := r.db.WithContext(ctx).Model(&model.SiliconContent{}).
-		Select("role_category, COUNT(*) as count, COALESCE(AVG(silicon_percentage), 0) as avg_silicon_pct, COALESCE(SUM(ai_lines), 0) as total_ai_lines, COALESCE(SUM(total_lines), 0) as total_lines").
-		Group("role_category").
-		Scan(&roleStats).Error; err != nil {
+	if err := r.db.WithContext(ctx).Raw(`
+		SELECT 
+			role_category, 
+			COUNT(DISTINCT username) as count, 
+			COALESCE(AVG(user_avg), 0)::double precision as avg_silicon_pct,
+			COALESCE(SUM(ai_lines), 0)::bigint as total_ai_lines,
+			COALESCE(SUM(total_lines), 0)::bigint as total_lines
+		FROM (
+			SELECT username, role_category, AVG(silicon_percentage) AS user_avg, SUM(ai_lines) AS ai_lines, SUM(total_lines) AS total_lines
+			FROM silicon_contents
+			WHERE ($1::date IS NULL OR date >= $1::date) AND ($2::date IS NULL OR date <= $2::date)
+			GROUP BY username, role_category
+		) t
+		GROUP BY role_category
+	`, startDate, endDate).Scan(&roleStats).Error; err != nil {
 		return nil, err
 	}
 	stats.RoleDistribution = roleStats
