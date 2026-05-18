@@ -84,13 +84,15 @@ export const KPICards: React.FC<KPICardsProps> = ({ dateRange }) => {
     return () => clearInterval(timer);
   }, [fetchStats]);
 
-  const totalSavedMinutes = teamSavings.reduce((s, t) => s + t.minutes, 0);
-  const totalSavedHours = totalSavedMinutes / 60;
-  const savedDisplay = totalSavedHours >= 100
-    ? `${totalSavedHours.toFixed(0)}h`
-    : totalSavedHours >= 1
-      ? `${totalSavedHours.toFixed(1)}h`
-      : `${totalSavedMinutes}min`;
+  const avgMultiplier = teamSavings.length > 0
+    ? teamSavings.reduce((sum, t) => {
+        const ratio = t.standard_minutes > 0 ? t.traditional_minutes / t.standard_minutes : 0;
+        return sum + ratio;
+      }, 0) / teamSavings.length
+    : 0;
+  const multiplierDisplay = avgMultiplier >= 1
+    ? `${avgMultiplier.toFixed(2)}倍`
+    : `${avgMultiplier.toFixed(2)}倍`;
 
   const totalTokens = tokenUsages.reduce((s, t) => s + (t.total_tokens || 0), 0);
   const totalDailyTokens = tokenUsages.reduce((s, t) => s + (t.daily_tokens || 0), 0);
@@ -115,8 +117,8 @@ export const KPICards: React.FC<KPICardsProps> = ({ dateRange }) => {
       glow: 'rgba(59,130,246,0.5)',
     },
     {
-      label: '累计节省时间',
-      value: teamSavings.length > 0 ? savedDisplay : '--',
+      label: '各团队平均效率提升倍数',
+      value: teamSavings.length > 0 ? multiplierDisplay : '--',
       change: teamSavings.length > 0 ? `${teamSavings.length} 个团队` : '',
       changeType: 'up' as const,
       subLabel: '标准化部署收益',

@@ -99,10 +99,20 @@ func (r *SiliconContentRepository) ListAggregated(ctx context.Context, startDate
 			username AS id,
 			username,
 			role_category,
-			(COALESCE(AVG(silicon_percentage), 0))::double precision AS silicon_percentage,
+			CASE 
+				WHEN COALESCE(SUM(total_lines), 0) > 0 
+				THEN (COALESCE(SUM(ai_lines), 0)::double precision / COALESCE(SUM(total_lines), 0)::double precision * 100)
+				ELSE 0 
+			END::double precision AS silicon_percentage,
 			COALESCE(SUM(ai_lines), 0)::bigint AS ai_lines,
 			COALESCE(SUM(total_lines), 0)::bigint AS total_lines,
-			ROW_NUMBER() OVER (ORDER BY COALESCE(AVG(silicon_percentage), 0) DESC)::int AS rank
+			ROW_NUMBER() OVER (
+				ORDER BY CASE 
+					WHEN COALESCE(SUM(total_lines), 0) > 0 
+					THEN (COALESCE(SUM(ai_lines), 0)::double precision / COALESCE(SUM(total_lines), 0)::double precision * 100)
+					ELSE 0 
+				END DESC
+			)::int AS rank
 		FROM silicon_contents
 		WHERE ($1::date IS NULL OR date >= $1::date)
 		  AND ($2::date IS NULL OR date <= $2::date)
@@ -148,10 +158,15 @@ func (r *SiliconContentRepository) GetStats(ctx context.Context, startDate, endD
 		return nil, err
 	}
 
-	// 平均硅含量（所有人的日均均值）
+	// 平均硅含量（所有人的实际 AI代码量/总代码量 的均值）
 	if err := r.db.WithContext(ctx).Raw(`
-		SELECT COALESCE(AVG(user_avg), 0)::double precision FROM (
-			SELECT AVG(silicon_percentage) AS user_avg
+		SELECT COALESCE(AVG(user_pct), 0)::double precision FROM (
+			SELECT 
+				CASE 
+					WHEN COALESCE(SUM(total_lines), 0) > 0 
+					THEN (COALESCE(SUM(ai_lines), 0)::double precision / COALESCE(SUM(total_lines), 0)::double precision * 100)
+					ELSE 0 
+				END::double precision AS user_pct
 			FROM silicon_contents
 			WHERE ($1::date IS NULL OR date >= $1::date) AND ($2::date IS NULL OR date <= $2::date)
 			GROUP BY username
@@ -178,17 +193,26 @@ func (r *SiliconContentRepository) GetStats(ctx context.Context, startDate, endD
 		stats.OverallSiliconPct = float64(stats.TotalAILines) / float64(stats.TotalLines) * 100
 	}
 
-	// 职类分布统计
+	// 职类分布统计（按职类计算实际 AI代码量/总代码量 的百分比）
 	var roleStats []model.RoleStat
 	if err := r.db.WithContext(ctx).Raw(`
 		SELECT 
 			role_category, 
 			COUNT(DISTINCT username) as count, 
-			COALESCE(AVG(user_avg), 0)::double precision as avg_silicon_pct,
+			COALESCE(AVG(role_pct), 0)::double precision as avg_silicon_pct,
 			COALESCE(SUM(ai_lines), 0)::bigint as total_ai_lines,
 			COALESCE(SUM(total_lines), 0)::bigint as total_lines
 		FROM (
-			SELECT username, role_category, AVG(silicon_percentage) AS user_avg, SUM(ai_lines) AS ai_lines, SUM(total_lines) AS total_lines
+			SELECT 
+				username,
+				role_category, 
+				CASE 
+					WHEN COALESCE(SUM(total_lines), 0) > 0 
+					THEN (COALESCE(SUM(ai_lines), 0)::double precision / COALESCE(SUM(total_lines), 0)::double precision * 100)
+					ELSE 0 
+				END::double precision AS role_pct,
+				SUM(ai_lines) AS ai_lines, 
+				SUM(total_lines) AS total_lines
 			FROM silicon_contents
 			WHERE ($1::date IS NULL OR date >= $1::date) AND ($2::date IS NULL OR date <= $2::date)
 			GROUP BY username, role_category

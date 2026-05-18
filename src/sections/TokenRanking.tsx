@@ -32,18 +32,22 @@ const PAGE_SIZE = 10;
 
 interface TokenRankingProps {
   dateRange: DateRange;
+  thresholdM: number;
 }
 
-export const TokenRanking: React.FC<TokenRankingProps> = ({ dateRange }) => {
+export const TokenRanking: React.FC<TokenRankingProps> = ({ dateRange, thresholdM }) => {
   const [members, setMembers] = useState<TokenUsageItem[]>([]);
   const [currentPage, setCurrentPage] = useState(0);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
+  const thresholdTokens = thresholdM * 1_000_000;
+
   const totalPages = Math.ceil(members.length / PAGE_SIZE);
   const displayMembers = members.slice(currentPage * PAGE_SIZE, (currentPage + 1) * PAGE_SIZE);
   const maxTokens = members.length > 0 ? members[0].daily_tokens : 1;
   const totalDailyTokens = members.reduce((s, m) => s + m.daily_tokens, 0);
+  const qualifiedCount = members.filter(m => m.daily_tokens >= thresholdTokens).length;
 
   const fetchData = useCallback(async () => {
     setLoading(true);
@@ -120,7 +124,8 @@ export const TokenRanking: React.FC<TokenRankingProps> = ({ dateRange }) => {
 
   return (
     <div className="dashboard-card glow-cyan h-full flex flex-col p-4">
-      <div className="flex items-center justify-between mb-4">
+      {/* Header */}
+      <div className="flex items-center justify-between mb-3">
         <div className="flex items-center gap-2">
           <div className="w-1 h-6 bg-cyan-400 rounded-full" style={{ boxShadow: '0 0 8px #00d4ff' }} />
           <h2 className="text-white font-semibold text-base">Token 日均排行榜</h2>
@@ -153,6 +158,7 @@ export const TokenRanking: React.FC<TokenRankingProps> = ({ dateRange }) => {
           const rank = member.rank;
           const pct = maxTokens > 0 ? (member.daily_tokens / maxTokens) * 100 : 0;
           const isTop3 = rank <= 3;
+          const isQualified = member.daily_tokens >= thresholdTokens;
 
           return (
             <div
@@ -183,6 +189,22 @@ export const TokenRanking: React.FC<TokenRankingProps> = ({ dateRange }) => {
                 <div className="flex items-center gap-2 mb-0.5">
                   <span className="text-white text-sm font-medium">{member.username}</span>
                   <span className="text-slate-500 text-xs truncate">{member.role_category}</span>
+                  {/* AI Native 徽章 */}
+                  {isQualified && (
+                    <span
+                      className="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-bold border"
+                      style={{
+                        background: 'linear-gradient(135deg, rgba(0,212,255,0.15) 0%, rgba(59,130,246,0.15) 100%)',
+                        borderColor: 'rgba(0,212,255,0.4)',
+                        color: '#00d4ff',
+                        textShadow: '0 0 6px rgba(0,212,255,0.4)',
+                        boxShadow: '0 0 8px rgba(0,212,255,0.15)',
+                      }}
+                      title={`日均 Token ≥ ${formatTokens(thresholdTokens)}，AI Native 开发人员`}
+                    >
+                      AI Native
+                    </span>
+                  )}
                 </div>
                 {/* Progress bar */}
                 <div className="h-1.5 bg-slate-800 rounded-full overflow-hidden">
@@ -215,6 +237,11 @@ export const TokenRanking: React.FC<TokenRankingProps> = ({ dateRange }) => {
       <div className="mt-3 pt-3 border-t border-slate-800 flex items-center justify-between text-xs text-slate-600">
         <span>
           共 {members.length} 人参与
+          {qualifiedCount > 0 && (
+            <span className="ml-2 text-cyan-400">
+              {qualifiedCount} 人达标
+            </span>
+          )}
           {totalPages > 1 && (
             <span className="ml-2 text-cyan-500">
               第 {currentPage + 1}/{totalPages} 页

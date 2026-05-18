@@ -13,7 +13,7 @@ export interface DateRange {
   label: string;
 }
 
-function Dashboard({ dateRange }: { dateRange: DateRange }) {
+function Dashboard({ dateRange, thresholdM }: { dateRange: DateRange; thresholdM: number }) {
   return (
     <>
       {/* KPI Cards */}
@@ -29,7 +29,7 @@ function Dashboard({ dateRange }: { dateRange: DateRange }) {
           <PRSiliconChart dateRange={dateRange} />
         </div>
         <div style={{ gridRow: '1 / 2', gridColumn: '2 / 3' }}>
-          <TokenRanking dateRange={dateRange} />
+          <TokenRanking dateRange={dateRange} thresholdM={thresholdM} />
         </div>
         <div style={{ gridRow: '1 / 2', gridColumn: '3 / 4' }}>
           <DeployMetricsChart />
@@ -56,6 +56,7 @@ function App() {
       label: '最近30天',
     };
   });
+  const [thresholdM, setThresholdM] = useState(1);
 
   return (
     <BrowserRouter>
@@ -63,10 +64,15 @@ function App() {
         {/* Scan line effect */}
         <div className="scanline" />
 
-        <TopBar dateRange={dateRange} onDateRangeChange={setDateRange} />
+        <TopBar
+          dateRange={dateRange}
+          onDateRangeChange={setDateRange}
+          thresholdM={thresholdM}
+          onThresholdChange={setThresholdM}
+        />
 
         <Routes>
-          <Route path="/" element={<Dashboard dateRange={dateRange} />} />
+          <Route path="/" element={<Dashboard dateRange={dateRange} thresholdM={thresholdM} />} />
           <Route path="/admin" element={<AdminPage />} />
         </Routes>
       </div>

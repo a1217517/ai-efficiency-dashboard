@@ -6,6 +6,8 @@ const API_BASE = 'http://47.103.58.81:8082/api/v1';
 interface TeamSaving {
   id: string;
   team_name: string;
+  traditional_minutes: number;
+  standard_minutes: number;
   minutes: number;
   hours: number;
   sort_order: number;
@@ -28,8 +30,10 @@ export const DeployMetricsChart: React.FC = () => {
   }, []);
 
   const teams = data.map(d => d.team_name);
-  const savedMinutes = data.map(d => d.minutes);
-  const savedHours = data.map(d => d.hours);
+  const multipliers = data.map(d => {
+    if (d.standard_minutes <= 0) return 0;
+    return parseFloat((d.traditional_minutes / d.standard_minutes).toFixed(2));
+  });
 
   const option = useMemo(() => {
     if (data.length === 0) {
@@ -53,10 +57,17 @@ export const DeployMetricsChart: React.FC = () => {
         formatter: (params: any[]) => {
           const p = params[0];
           const idx = p.dataIndex;
+          const d = data[idx];
+          const multiplier = multipliers[idx];
+          const savedMin = d.minutes;
+          const savedHr = d.hours;
           return `<div style="padding:4px 8px">
             <b>${teams[idx]}</b><br/>
-            节省时间：<b style="color:#00f0ff">${savedMinutes[idx]} 分钟</b><br/>
-            折合：<b style="color:#ff00ff">${savedHours[idx].toFixed(2)} 小时</b>
+            效率提升倍数：<b style="color:#00f0ff">${multiplier}倍</b><br/>
+            传统部署耗时：<b style="color:#94a3b8">${d.traditional_minutes} 分钟</b><br/>
+            标准化部署耗时：<b style="color:#94a3b8">${d.standard_minutes} 分钟</b><br/>
+            节省时间：<b style="color:#ff00ff">${savedMin} 分钟</b><br/>
+            折合：<b style="color:#ff00ff">${savedHr.toFixed(2)} 小时</b>
           </div>`;
         },
       },
@@ -78,17 +89,17 @@ export const DeployMetricsChart: React.FC = () => {
       },
       yAxis: {
         type: 'value',
-        name: '节省时间（分钟）',
+        name: '效率提升倍数（倍）',
         nameTextStyle: { color: '#475569', fontSize: 10 },
         axisLabel: { color: '#475569', fontSize: 10 },
         splitLine: { lineStyle: { color: '#1e293b', type: 'dashed' } },
         axisLine: { show: false },
       },
       series: [{
-        name: '节省时间',
+        name: '效率提升倍数',
         type: 'bar',
         barWidth: '50%',
-        data: savedMinutes.map((value, idx) => ({
+        data: multipliers.map((value, idx) => ({
           value,
           itemStyle: {
             color: {
@@ -107,7 +118,7 @@ export const DeployMetricsChart: React.FC = () => {
         label: {
           show: true,
           position: 'top',
-          formatter: (p: any) => `${savedHours[p.dataIndex].toFixed(2)}h`,
+          formatter: (p: any) => `${multipliers[p.dataIndex]}倍`,
           color: '#e2e8f0',
           fontSize: 11,
           fontWeight: 'bold',
@@ -116,22 +127,23 @@ export const DeployMetricsChart: React.FC = () => {
         },
       }],
     };
-  }, [data, teams, savedMinutes, savedHours]);
+  }, [data, teams, multipliers]);
 
-  const totalSaved = data.reduce((sum, d) => sum + d.minutes, 0);
-  const totalHours = (totalSaved / 60).toFixed(2);
+  const avgMultiplier = data.length > 0
+    ? (data.reduce((sum, d) => sum + (d.standard_minutes > 0 ? d.traditional_minutes / d.standard_minutes : 0), 0) / data.length).toFixed(2)
+    : '0';
 
   return (
     <div className="dashboard-card h-full flex flex-col p-4">
       <div className="flex items-center justify-between mb-2">
         <div className="flex items-center gap-2">
           <div className="w-1 h-6 bg-cyan-400 rounded-full" />
-          <h2 className="text-white font-semibold text-base">采用标准化部署后各团队节省时间</h2>
+          <h2 className="text-white font-semibold text-base">各团队效率提升倍数</h2>
         </div>
         <div className="flex items-center gap-3">
           <div className="text-right">
-            <span className="text-cyan-300 font-mono text-sm font-semibold">{totalHours}h</span>
-            <span className="text-slate-600 text-xs ml-1">总计</span>
+            <span className="text-cyan-300 font-mono text-sm font-semibold">{avgMultiplier}倍</span>
+            <span className="text-slate-600 text-xs ml-1">平均</span>
           </div>
         </div>
       </div>

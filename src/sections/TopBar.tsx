@@ -27,6 +27,8 @@ interface TokenUsage {
 interface TopBarProps {
   dateRange: DateRange;
   onDateRangeChange?: (range: DateRange) => void;
+  thresholdM?: number;
+  onThresholdChange?: (val: number) => void;
 }
 
 const presets = [
@@ -36,7 +38,7 @@ const presets = [
   { label: '最近90天', days: 90 },
 ];
 
-export const TopBar: React.FC<TopBarProps> = ({ dateRange, onDateRangeChange }) => {
+export const TopBar: React.FC<TopBarProps> = ({ dateRange, onDateRangeChange, thresholdM = 1, onThresholdChange }) => {
   const [time, setTime] = useState(new Date());
   const [announcements, setAnnouncements] = useState<string[]>([
     '📊 正在加载实时数据...',
@@ -145,6 +147,13 @@ export const TopBar: React.FC<TopBarProps> = ({ dateRange, onDateRangeChange }) 
     setPopoverOpen(false);
   };
 
+  const handleThresholdChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const val = parseFloat(e.target.value);
+    if (onThresholdChange) {
+      onThresholdChange(isNaN(val) || val < 0 ? 0 : val);
+    }
+  };
+
   const applyCustom = () => {
     if (!onDateRangeChange || !customStart || !customEnd) return;
     onDateRangeChange({
@@ -186,6 +195,23 @@ export const TopBar: React.FC<TopBarProps> = ({ dateRange, onDateRangeChange }) 
 
         {/* Right: DateFilter + Time + Nav */}
         <div className="flex items-center gap-4">
+          {/* Token 达标阈值 */}
+          {!isAdmin && onThresholdChange && (
+            <div className="flex items-center gap-1.5">
+              <span className="text-slate-500 text-[11px]">达标阈值</span>
+              <div className="relative w-[72px]">
+                <input
+                  type="number"
+                  min={0}
+                  step={0.1}
+                  value={thresholdM}
+                  onChange={handleThresholdChange}
+                  className="w-full h-7 rounded-md border border-slate-700 bg-[#0f1629] px-2 pr-5 text-xs text-cyan-300 font-mono focus:outline-none focus:border-cyan-500/50 transition-colors"
+                />
+                <span className="absolute right-1.5 top-1/2 -translate-y-1/2 text-slate-500 text-[10px] font-mono">M</span>
+              </div>
+            </div>
+          )}
           {/* Date Range Picker — 仅看板页面显示 */}
           {!isAdmin && onDateRangeChange && (
             <Popover open={popoverOpen} onOpenChange={setPopoverOpen}>
