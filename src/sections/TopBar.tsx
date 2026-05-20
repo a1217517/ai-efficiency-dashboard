@@ -29,6 +29,8 @@ interface TopBarProps {
   onDateRangeChange?: (range: DateRange) => void;
   thresholdM?: number;
   onThresholdChange?: (val: number) => void;
+  siliconThreshold?: number;
+  onSiliconThresholdChange?: (val: number) => void;
 }
 
 const presets = [
@@ -38,7 +40,7 @@ const presets = [
   { label: '最近90天', days: 90 },
 ];
 
-export const TopBar: React.FC<TopBarProps> = ({ dateRange, onDateRangeChange, thresholdM = 1, onThresholdChange }) => {
+export const TopBar: React.FC<TopBarProps> = ({ dateRange, onDateRangeChange, thresholdM = 1, onThresholdChange, siliconThreshold = 50, onSiliconThresholdChange }) => {
   const [time, setTime] = useState(new Date());
   const [announcements, setAnnouncements] = useState<string[]>([
     '📊 正在加载实时数据...',
@@ -154,6 +156,13 @@ export const TopBar: React.FC<TopBarProps> = ({ dateRange, onDateRangeChange, th
     }
   };
 
+  const handleSiliconThresholdChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const val = parseFloat(e.target.value);
+    if (onSiliconThresholdChange) {
+      onSiliconThresholdChange(isNaN(val) || val < 0 ? 0 : val);
+    }
+  };
+
   const applyCustom = () => {
     if (!onDateRangeChange || !customStart || !customEnd) return;
     onDateRangeChange({
@@ -195,21 +204,44 @@ export const TopBar: React.FC<TopBarProps> = ({ dateRange, onDateRangeChange, th
 
         {/* Right: DateFilter + Time + Nav */}
         <div className="flex items-center gap-4">
-          {/* Token 达标阈值 */}
-          {!isAdmin && onThresholdChange && (
-            <div className="flex items-center gap-1.5">
-              <span className="text-slate-500 text-[11px]">达标阈值</span>
-              <div className="relative w-[72px]">
-                <input
-                  type="number"
-                  min={0}
-                  step={0.1}
-                  value={thresholdM}
-                  onChange={handleThresholdChange}
-                  className="w-full h-7 rounded-md border border-slate-700 bg-[#0f1629] px-2 pr-5 text-xs text-cyan-300 font-mono focus:outline-none focus:border-cyan-500/50 transition-colors"
-                />
-                <span className="absolute right-1.5 top-1/2 -translate-y-1/2 text-slate-500 text-[10px] font-mono">M</span>
-              </div>
+          {/* 达标阈值 */}
+          {!isAdmin && (
+            <div className="flex items-center gap-3">
+              {/* Token 达标阈值 */}
+              {onThresholdChange && (
+                <div className="flex items-center gap-1.5">
+                  <span className="text-slate-500 text-[11px]">Token 达标</span>
+                  <div className="relative w-[72px]">
+                    <input
+                      type="number"
+                      min={0}
+                      step={0.1}
+                      value={thresholdM}
+                      onChange={handleThresholdChange}
+                      className="w-full h-7 rounded-md border border-slate-700 bg-[#0f1629] px-2 pr-5 text-xs text-cyan-300 font-mono focus:outline-none focus:border-cyan-500/50 transition-colors"
+                    />
+                    <span className="absolute right-1.5 top-1/2 -translate-y-1/2 text-slate-500 text-[10px] font-mono">M</span>
+                  </div>
+                </div>
+              )}
+              {/* PR 硅含量达标阈值 */}
+              {onSiliconThresholdChange && (
+                <div className="flex items-center gap-1.5">
+                  <span className="text-slate-500 text-[11px]">硅含量达标</span>
+                  <div className="relative w-[72px]">
+                    <input
+                      type="number"
+                      min={0}
+                      max={100}
+                      step={1}
+                      value={siliconThreshold}
+                      onChange={handleSiliconThresholdChange}
+                      className="w-full h-7 rounded-md border border-slate-700 bg-[#0f1629] px-2 pr-6 text-xs text-blue-300 font-mono focus:outline-none focus:border-blue-500/50 transition-colors"
+                    />
+                    <span className="absolute right-1.5 top-1/2 -translate-y-1/2 text-slate-500 text-[10px] font-mono">%</span>
+                  </div>
+                </div>
+              )}
             </div>
           )}
           {/* Date Range Picker — 仅看板页面显示 */}

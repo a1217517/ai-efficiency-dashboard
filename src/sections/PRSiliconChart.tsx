@@ -42,9 +42,10 @@ const formatLines = (n: number): string => {
 
 interface PRSiliconChartProps {
   dateRange: DateRange;
+  siliconThreshold: number;
 }
 
-export const PRSiliconChart: React.FC<PRSiliconChartProps> = ({ dateRange }) => {
+export const PRSiliconChart: React.FC<PRSiliconChartProps> = ({ dateRange, siliconThreshold }) => {
   const [members, setMembers] = useState<SiliconContentItem[]>([]);
   const [currentPage, setCurrentPage] = useState(0);
   const [loading, setLoading] = useState(true);
@@ -54,6 +55,7 @@ export const PRSiliconChart: React.FC<PRSiliconChartProps> = ({ dateRange }) => 
   const displayMembers = members.slice(currentPage * PAGE_SIZE, (currentPage + 1) * PAGE_SIZE);
   const maxPct = members.length > 0 ? members[0].silicon_percentage : 1;
   const totalAILines = members.reduce((s, m) => s + m.ai_lines, 0);
+  const qualifiedCount = members.filter(m => m.silicon_percentage >= siliconThreshold).length;
 
   const fetchData = useCallback(async () => {
     setLoading(true);
@@ -161,6 +163,7 @@ export const PRSiliconChart: React.FC<PRSiliconChartProps> = ({ dateRange }) => 
           const rank = member.rank;
           const pct = maxPct > 0 ? (member.silicon_percentage / maxPct) * 100 : 0;
           const isTop3 = rank <= 3;
+          const isQualified = member.silicon_percentage >= siliconThreshold;
           const roleColor = roleColorMap[member.role_category] || '#64748b';
 
           return (
@@ -190,6 +193,21 @@ export const PRSiliconChart: React.FC<PRSiliconChartProps> = ({ dateRange }) => 
                 <div className="flex items-center gap-2 mb-0.5">
                   <span className="text-white text-sm font-medium truncate">{member.username}</span>
                   <span className="text-slate-500 text-xs truncate">{member.role_category}</span>
+                  {isQualified && (
+                    <span
+                      className="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-bold border"
+                      style={{
+                        background: 'linear-gradient(135deg, rgba(0,212,255,0.15) 0%, rgba(59,130,246,0.15) 100%)',
+                        borderColor: 'rgba(0,212,255,0.4)',
+                        color: '#00d4ff',
+                        textShadow: '0 0 6px rgba(0,212,255,0.4)',
+                        boxShadow: '0 0 8px rgba(0,212,255,0.15)',
+                      }}
+                      title={`硅含量 ≥ ${siliconThreshold}%，AI Native 开发人员`}
+                    >
+                      AI Native
+                    </span>
+                  )}
                 </div>
                 {/* Progress bar */}
                 <div className="h-1.5 bg-slate-800 rounded-full overflow-hidden">
@@ -218,6 +236,11 @@ export const PRSiliconChart: React.FC<PRSiliconChartProps> = ({ dateRange }) => 
       <div className="mt-3 pt-3 border-t border-slate-800 flex items-center justify-between text-xs text-slate-600">
         <span>
           共 {members.length} 人参与
+          {qualifiedCount > 0 && (
+            <span className="ml-2 text-blue-400">
+              {qualifiedCount} 人达标
+            </span>
+          )}
           {totalPages > 1 && (
             <span className="ml-2 text-blue-500">
               第 {currentPage + 1}/{totalPages} 页

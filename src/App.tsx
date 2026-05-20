@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { BrowserRouter, Routes, Route } from 'react-router-dom';
 import { TopBar } from './sections/TopBar';
 import { TokenRanking } from './sections/TokenRanking';
@@ -13,11 +13,20 @@ export interface DateRange {
   label: string;
 }
 
-function Dashboard({ dateRange, thresholdM }: { dateRange: DateRange; thresholdM: number }) {
+const API_BASE = 'http://47.103.58.81:8082/api/v1';
+
+interface ThresholdConfig {
+  metric_type: string;
+  threshold_value: number;
+  description: string;
+  updated_at: string;
+}
+
+function Dashboard({ dateRange, thresholdM, siliconThreshold }: { dateRange: DateRange; thresholdM: number; siliconThreshold: number }) {
   return (
     <>
       {/* KPI Cards */}
-      <KPICards dateRange={dateRange} />
+      <KPICards dateRange={dateRange} thresholdM={thresholdM} siliconThreshold={siliconThreshold} />
 
       {/* Main dashboard grid */}
       <main className="flex-1 p-4 grid gap-4" style={{
@@ -26,7 +35,7 @@ function Dashboard({ dateRange, thresholdM }: { dateRange: DateRange; thresholdM
         minHeight: 0,
       }}>
         <div style={{ gridRow: '1 / 2', gridColumn: '1 / 2' }}>
-          <PRSiliconChart dateRange={dateRange} />
+          <PRSiliconChart dateRange={dateRange} siliconThreshold={siliconThreshold} />
         </div>
         <div style={{ gridRow: '1 / 2', gridColumn: '2 / 3' }}>
           <TokenRanking dateRange={dateRange} thresholdM={thresholdM} />
@@ -45,18 +54,55 @@ function Dashboard({ dateRange, thresholdM }: { dateRange: DateRange; thresholdM
   );
 }
 
+function getDateRangeFromDays(days: number): DateRange {
+  const end = new Date();
+  const start = new Date();
+  start.setDate(end.getDate() - days);
+  return {
+    startDate: start.toISOString().split('T')[0],
+    endDate: end.toISOString().split('T')[0],
+    label: `最近${days}天`,
+  };
+}
+
 function App() {
-  const [dateRange, setDateRange] = useState<DateRange>(() => {
-    const end = new Date();
-    const start = new Date();
-    start.setDate(end.getDate() - 30);
-    return {
-      startDate: start.toISOString().split('T')[0],
-      endDate: end.toISOString().split('T')[0],
-      label: '最近30天',
-    };
-  });
+  const [dateRange, setDateRange] = useState<DateRange>(getDateRangeFromDays(30));
   const [thresholdM, setThresholdM] = useState(1);
+  const [siliconThreshold, setSiliconThreshold] = useState(50);
+  const [configLoaded, setConfigLoaded] = useState(false);
+
+  useEffect(() => {
+    fetch(`${API_BASE}/thresholds`)
+      .then(res => res.json())
+      .then(data => {
+        if (data.code === 0 && Array.isArray(data.data)) {
+          const configs: ThresholdConfig[] = data.data;
+          const tokenCfg = configs.find(c => c.metric_type === 'token_daily_avg');
+          const siliconCfg = configs.find(c => c.metric_type === 'pr_silicon_ratio');
+          const daysCfg = configs.find(c => c.metric_type === 'date_range_days');
+
+          const tokenVal = tokenCfg ? tokenCfg.threshold_value : 1;
+          const siliconVal = siliconCfg ? siliconCfg.threshold_value : 50;
+          const daysVal = daysCfg ? Math.round(daysCfg.threshold_value) : 30;
+
+          setThresholdM(tokenVal);
+          setSiliconThreshold(siliconVal);
+          setDateRange(getDateRangeFromDays(daysVal));
+        }
+        setConfigLoaded(true);
+      })
+      .catch(() => {
+        setConfigLoaded(true);
+      });
+  }, []);
+
+  if (!configLoaded) {
+    return (
+      <div className="min-h-screen grid-bg flex items-center justify-center" style={{ background: '#080e1a' }}>
+        <div className="text-cyan-400 text-sm">加载配置中...</div>
+      </div>
+    );
+  }
 
   return (
     <BrowserRouter>
@@ -69,10 +115,12 @@ function App() {
           onDateRangeChange={setDateRange}
           thresholdM={thresholdM}
           onThresholdChange={setThresholdM}
+          siliconThreshold={siliconThreshold}
+          onSiliconThresholdChange={setSiliconThreshold}
         />
 
         <Routes>
-          <Route path="/" element={<Dashboard dateRange={dateRange} thresholdM={thresholdM} />} />
+          <Route path="/" element={<Dashboard dateRange={dateRange} thresholdM={thresholdM} siliconThreshold={siliconThreshold} />} />
           <Route path="/admin" element={<AdminPage />} />
         </Routes>
       </div>

@@ -67,6 +67,142 @@ interface ImportResult {
   batch_id: string;
 }
 
+interface ThresholdConfig {
+  metric_type: string;
+  threshold_value: number;
+  description: string;
+  updated_at: string;
+}
+
+interface DashboardConfig {
+  tokenThreshold: number;
+  siliconThreshold: number;
+  dateRangeDays: number;
+}
+
+const DashboardConfigPanel: React.FC = () => {
+  const [cfg, setCfg] = useState<DashboardConfig>({
+    tokenThreshold: 1,
+    siliconThreshold: 50,
+    dateRangeDays: 30,
+  });
+  const [saved, setSaved] = useState(false);
+  const [loading, setLoading] = useState(false);
+  const token = localStorage.getItem('admin_token') || '';
+
+  useEffect(() => {
+    fetch(`${API_BASE}/thresholds`)
+      .then(res => res.json())
+      .then(data => {
+        if (data.code === 0 && Array.isArray(data.data)) {
+          const configs: ThresholdConfig[] = data.data;
+          const tokenCfg = configs.find(c => c.metric_type === 'token_daily_avg');
+          const siliconCfg = configs.find(c => c.metric_type === 'pr_silicon_ratio');
+          const daysCfg = configs.find(c => c.metric_type === 'date_range_days');
+          setCfg({
+            tokenThreshold: tokenCfg ? tokenCfg.threshold_value : 1,
+            siliconThreshold: siliconCfg ? siliconCfg.threshold_value : 50,
+            dateRangeDays: daysCfg ? Math.round(daysCfg.threshold_value) : 30,
+          });
+        }
+      })
+      .catch(err => console.error('加载配置失败:', err));
+  }, []);
+
+  const handleSave = async () => {
+    setLoading(true);
+    try {
+      const updates = [
+        { metric_type: 'token_daily_avg', threshold_value: cfg.tokenThreshold },
+        { metric_type: 'pr_silicon_ratio', threshold_value: cfg.siliconThreshold },
+        { metric_type: 'date_range_days', threshold_value: cfg.dateRangeDays },
+      ];
+
+      for (const u of updates) {
+        const res = await fetch(`${API_BASE}/thresholds`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+          body: JSON.stringify(u),
+        });
+        const data = await res.json();
+        if (data.code !== 0) {
+          alert(`保存 ${u.metric_type} 失败: ${data.message}`);
+          setLoading(false);
+          return;
+        }
+      }
+
+      setSaved(true);
+      setTimeout(() => setSaved(false), 2000);
+    } catch {
+      alert('网络错误，保存失败');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  return (
+    <div className="dashboard-card p-6 max-w-2xl">
+      <h3 className="text-white font-semibold text-lg mb-4">看板默认过滤配置</h3>
+      <div className="space-y-5">
+        <div>
+          <label className="text-sm text-slate-400 mb-1 block">Token 达标阈值（单位：百万 Tokens）</label>
+          <div className="flex items-center gap-3">
+            <Input
+              type="number"
+              min={0}
+              step={0.1}
+              value={cfg.tokenThreshold}
+              onChange={e => setCfg({ ...cfg, tokenThreshold: Number(e.target.value) })}
+              className="w-48 bg-[#1a2235] border-slate-700 text-white"
+            />
+            <span className="text-slate-500 text-sm">M</span>
+          </div>
+          <p className="text-slate-600 text-xs mt-1">Token 排行榜中，日均使用量 ≥ 此阈值的人员会被标记为达标</p>
+        </div>
+        <div>
+          <label className="text-sm text-slate-400 mb-1 block">硅含量达标阈值（单位：%）</label>
+          <div className="flex items-center gap-3">
+            <Input
+              type="number"
+              min={0}
+              max={100}
+              step={1}
+              value={cfg.siliconThreshold}
+              onChange={e => setCfg({ ...cfg, siliconThreshold: Number(e.target.value) })}
+              className="w-48 bg-[#1a2235] border-slate-700 text-white"
+            />
+            <span className="text-slate-500 text-sm">%</span>
+          </div>
+          <p className="text-slate-600 text-xs mt-1">PR 硅含量排行榜中，硅含量 ≥ 此阈值的人员会被标记为达标</p>
+        </div>
+        <div>
+          <label className="text-sm text-slate-400 mb-1 block">默认时间范围（天数）</label>
+          <div className="flex items-center gap-3">
+            <Input
+              type="number"
+              min={1}
+              max={365}
+              step={1}
+              value={cfg.dateRangeDays}
+              onChange={e => setCfg({ ...cfg, dateRangeDays: Number(e.target.value) })}
+              className="w-48 bg-[#1a2235] border-slate-700 text-white"
+            />
+            <span className="text-slate-500 text-sm">天</span>
+          </div>
+          <p className="text-slate-600 text-xs mt-1">看板页面加载时默认展示的时间范围</p>
+        </div>
+      </div>
+      <div className="mt-6 flex items-center gap-3">
+        <Button onClick={handleSave} disabled={loading} className="bg-cyan-600 hover:bg-cyan-500 text-white">
+          {loading ? '保存中...' : '保存配置'}
+        </Button>
+        {saved && <span className="text-green-400 text-sm">✓ 已保存</span>}
+      </div>
+    </div>
+  );
+};
+
 const formatTokens = (n: number): string => {
   if (n >= 1_000_000_000) return `${(n / 1_000_000_000).toFixed(2)}B`;
   if (n >= 1_000_000) return `${(n / 1_000_000).toFixed(2)}M`;
@@ -75,7 +211,7 @@ const formatTokens = (n: number): string => {
 };
 
 export const AdminPage: React.FC = () => {
-  const [activeTab, setActiveTab] = useState<'users' | 'team-savings' | 'token-usages' | 'silicon-contents'>('users');
+  const [activeTab, setActiveTab] = useState<'users' | 'team-savings' | 'token-usages' | 'silicon-contents' | 'config'>('users');
   const [token, setToken] = useState(localStorage.getItem('admin_token') || '');
   const [isLoginOpen, setIsLoginOpen] = useState(!token);
   const [loginForm, setLoginForm] = useState({ username: '', password: '' });
@@ -590,10 +726,10 @@ export const AdminPage: React.FC = () => {
             <div className="flex items-center gap-3">
               <div className="w-1 h-6 bg-cyan-400 rounded-full" />
               <h2 className="text-white font-semibold text-xl">
-                {activeTab === 'users' ? '用户管理' : activeTab === 'team-savings' ? '部署效率对比' : activeTab === 'token-usages' ? 'Token 使用量数据' : '硅含量数据'}
+                {activeTab === 'users' ? '用户管理' : activeTab === 'team-savings' ? '部署效率对比' : activeTab === 'token-usages' ? 'Token 使用量数据' : activeTab === 'silicon-contents' ? '硅含量数据' : '系统配置'}
               </h2>
               <span className="text-slate-500 text-sm">
-                共 {activeTab === 'users' ? userTotal : activeTab === 'team-savings' ? savingTotal : activeTab === 'token-usages' ? tokenUsageTotal : siliconTotal} 条
+                共 {activeTab === 'users' ? userTotal : activeTab === 'team-savings' ? savingTotal : activeTab === 'token-usages' ? tokenUsageTotal : activeTab === 'silicon-contents' ? siliconTotal : 0} 条
               </span>
             </div>
             <div className="flex items-center gap-3">
@@ -621,6 +757,12 @@ export const AdminPage: React.FC = () => {
                   className={`px-4 py-1.5 text-sm transition-colors ${activeTab === 'silicon-contents' ? 'bg-cyan-600 text-white' : 'text-slate-400 hover:text-white'}`}
                 >
                   硅含量
+                </button>
+                <button
+                  onClick={() => setActiveTab('config')}
+                  className={`px-4 py-1.5 text-sm transition-colors ${activeTab === 'config' ? 'bg-cyan-600 text-white' : 'text-slate-400 hover:text-white'}`}
+                >
+                  系统配置
                 </button>
               </div>
               <Button onClick={handleLogout} className="bg-red-600 hover:bg-red-500 text-white">登出</Button>
@@ -929,6 +1071,10 @@ export const AdminPage: React.FC = () => {
               </div>
             </>
           )}
+
+          {activeTab === 'config' && (
+            <DashboardConfigPanel />
+          )}
         </div>
       </main>
 
@@ -1092,6 +1238,7 @@ export const AdminPage: React.FC = () => {
               </div>
             </div>
             {importResult && importResult.errors && importResult.errors.length > 0 && (
+
               <div className="bg-red-500/10 border border-red-500/30 rounded-lg p-3 max-h-40 overflow-y-auto">
                 <div className="text-red-400 text-sm font-medium mb-2">错误详情：</div>
                 {importResult.errors.map((err, i) => (

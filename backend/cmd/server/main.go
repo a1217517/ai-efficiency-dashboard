@@ -28,14 +28,17 @@ func main() {
 	teamSavingRepo := repository.NewTeamSavingRepository(db)
 	tokenUsageRepo := repository.NewTokenUsageRepository(db)
 	siliconContentRepo := repository.NewSiliconContentRepository(db)
+	configRepo := repository.NewConfigRepository(db)
 	userService := service.NewUserService(userRepo)
 	teamSavingService := service.NewTeamSavingService(teamSavingRepo)
 	tokenUsageService := service.NewTokenUsageService(tokenUsageRepo)
 	siliconContentService := service.NewSiliconContentService(siliconContentRepo)
+	configService := service.NewConfigService(configRepo)
 	userHandler := handler.NewUserHandler(userService)
 	teamSavingHandler := handler.NewTeamSavingHandler(teamSavingService)
 	tokenUsageHandler := handler.NewTokenUsageHandler(tokenUsageService)
 	siliconContentHandler := handler.NewSiliconContentHandler(siliconContentService)
+	configHandler := handler.NewConfigHandler(configService)
 
 	authHandler := handler.NewAuthHandler(userService, cfg.JWT)
 
@@ -61,9 +64,14 @@ func main() {
 		api.GET("/silicon-contents/all", siliconContentHandler.ListAll)
 		api.GET("/silicon-contents/stats", siliconContentHandler.Stats)
 
+		// 阈值配置 - 公开读取
+		api.GET("/thresholds", configHandler.GetThresholds)
+		api.GET("/thresholds/:metric_type", configHandler.GetThreshold)
+
 		auth := api.Group("/")
 		auth.Use(middleware.JWTAuth(cfg.JWT.Secret))
 		{
+			auth.POST("/thresholds", configHandler.UpdateThreshold)
 			auth.GET("/users", userHandler.List)
 			auth.GET("/users/:id", userHandler.GetByID)
 			auth.POST("/users", userHandler.Create)

@@ -1,6 +1,7 @@
 package repository
 
 import (
+	"context"
 	"fmt"
 
 	"github.com/wan-admin/ai-efficiency-admin/internal/config"
@@ -32,8 +33,14 @@ func NewDB(cfg config.DatabaseConfig) (*gorm.DB, error) {
 	sqlDB.SetMaxOpenConns(100)
 
 	// 自动迁移
-	if err := db.AutoMigrate(&model.User{}, &model.TeamSaving{}, &model.TokenUsage{}, &model.SiliconContent{}); err != nil {
+	if err := db.AutoMigrate(&model.User{}, &model.TeamSaving{}, &model.TokenUsage{}, &model.SiliconContent{}, &model.ConfigThreshold{}); err != nil {
 		return nil, fmt.Errorf("自动迁移失败: %w", err)
+	}
+
+	// 初始化默认阈值配置
+	configRepo := NewConfigRepository(db)
+	if err := configRepo.InitDefaults(context.Background()); err != nil {
+		return nil, fmt.Errorf("初始化阈值配置失败: %w", err)
 	}
 
 	return db, nil

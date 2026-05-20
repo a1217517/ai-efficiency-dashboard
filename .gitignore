@@ -11,3 +11,4 @@ dist/
 frontend.log
 backend.log
 frontend-build.log
+*.exe\n*.dll\n*.so\nbackend/main\nbackend/server\nbackend/server_new\nbackend/bin/\ndist/\nnode_modules/\n*.log\n.env.local\nfrontend-build.log\n

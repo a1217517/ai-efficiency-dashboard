@@ -36,9 +36,11 @@ const formatTokens = (n: number): string => {
 
 interface KPICardsProps {
   dateRange: DateRange;
+  thresholdM: number;
+  siliconThreshold: number;
 }
 
-export const KPICards: React.FC<KPICardsProps> = ({ dateRange }) => {
+export const KPICards: React.FC<KPICardsProps> = ({ dateRange, thresholdM, siliconThreshold }) => {
   const [siliconStats, setSiliconStats] = useState<SiliconStats | null>(null);
   const [teamSavings, setTeamSavings] = useState<TeamSaving[]>([]);
   const [tokenUsages, setTokenUsages] = useState<TokenUsageItem[]>([]);
@@ -94,25 +96,27 @@ export const KPICards: React.FC<KPICardsProps> = ({ dateRange }) => {
     ? `${avgMultiplier.toFixed(2)}倍`
     : `${avgMultiplier.toFixed(2)}倍`;
 
-  const totalTokens = tokenUsages.reduce((s, t) => s + (t.total_tokens || 0), 0);
   const totalDailyTokens = tokenUsages.reduce((s, t) => s + (t.daily_tokens || 0), 0);
+
+  const siliconMeetsThreshold = siliconStats ? siliconStats.overall_silicon_pct >= siliconThreshold : false;
+  const tokenQualifiedCount = tokenUsages.filter(t => (t.daily_tokens || 0) >= thresholdM * 1_000_000).length;
 
   const kpiData = [
     {
       label: '整体硅含量',
       value: siliconStats ? `${siliconStats.overall_silicon_pct.toFixed(1)}%` : '--',
-      change: siliconStats ? `共 ${siliconStats.total_members} 人` : '',
-      changeType: 'up' as const,
-      subLabel: 'AI 代码占比',
-      color: 'cyan' as const,
-      glow: 'rgba(0,212,255,0.5)',
+      change: siliconStats ? `共 ${siliconStats.total_members} 人${siliconMeetsThreshold ? ' · ✅ 已达标' : ''}` : '',
+      changeType: siliconMeetsThreshold ? 'up' as const : 'down' as const,
+      subLabel: `AI 代码占比 (阈值: ${siliconThreshold}%)`,
+      color: siliconMeetsThreshold ? 'cyan' as const : 'emerald' as const,
+      glow: siliconMeetsThreshold ? 'rgba(0,212,255,0.5)' : 'rgba(16,185,129,0.5)',
     },
     {
       label: 'Token 日均使用量',
       value: tokenUsages.length > 0 ? formatTokens(totalDailyTokens) : '--',
-      change: tokenUsages.length > 0 ? `${tokenUsages.length} 人 · 总量 ${formatTokens(totalTokens)}` : '',
+      change: tokenUsages.length > 0 ? `${tokenUsages.length} 人${tokenQualifiedCount > 0 ? ` · ${tokenQualifiedCount} 人达标` : ''}` : '',
       changeType: 'up' as const,
-      subLabel: dateRange.label,
+      subLabel: dateRange.label + ` (阈值: ${thresholdM}M)`,
       color: 'blue' as const,
       glow: 'rgba(59,130,246,0.5)',
     },
