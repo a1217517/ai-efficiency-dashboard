@@ -33,7 +33,7 @@ func NewDB(cfg config.DatabaseConfig) (*gorm.DB, error) {
 	sqlDB.SetMaxOpenConns(100)
 
 	// 自动迁移
-	if err := db.AutoMigrate(&model.User{}, &model.TeamSaving{}, &model.TokenUsage{}, &model.SiliconContent{}, &model.ConfigThreshold{}); err != nil {
+	if err := db.AutoMigrate(&model.User{}, &model.TeamSaving{}, &model.TokenUsage{}, &model.SiliconContent{}, &model.ConfigThreshold{}, &model.DepartmentMember{}); err != nil {
 		return nil, fmt.Errorf("自动迁移失败: %w", err)
 	}
 

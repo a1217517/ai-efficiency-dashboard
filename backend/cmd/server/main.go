@@ -29,16 +29,19 @@ func main() {
 	tokenUsageRepo := repository.NewTokenUsageRepository(db)
 	siliconContentRepo := repository.NewSiliconContentRepository(db)
 	configRepo := repository.NewConfigRepository(db)
+	deptMemberRepo := repository.NewDepartmentMemberRepository(db)
 	userService := service.NewUserService(userRepo)
 	teamSavingService := service.NewTeamSavingService(teamSavingRepo)
 	tokenUsageService := service.NewTokenUsageService(tokenUsageRepo)
 	siliconContentService := service.NewSiliconContentService(siliconContentRepo)
 	configService := service.NewConfigService(configRepo)
+	deptMemberService := service.NewDepartmentMemberService(deptMemberRepo)
 	userHandler := handler.NewUserHandler(userService)
 	teamSavingHandler := handler.NewTeamSavingHandler(teamSavingService)
 	tokenUsageHandler := handler.NewTokenUsageHandler(tokenUsageService)
 	siliconContentHandler := handler.NewSiliconContentHandler(siliconContentService)
 	configHandler := handler.NewConfigHandler(configService)
+	deptMemberHandler := handler.NewDepartmentMemberHandler(deptMemberService)
 
 	authHandler := handler.NewAuthHandler(userService, cfg.JWT)
 
@@ -67,11 +70,22 @@ func main() {
 		// 阈值配置 - 公开读取
 		api.GET("/thresholds", configHandler.GetThresholds)
 		api.GET("/thresholds/:metric_type", configHandler.GetThreshold)
+		// 部门人员聚合统计 - 公开接口（看板图表需要）
+		api.GET("/department-members/aggregate", deptMemberHandler.Aggregate)
+		api.GET("/department-members/depts", deptMemberHandler.GetDistinctDepts)
 
 		auth := api.Group("/")
 		auth.Use(middleware.JWTAuth(cfg.JWT.Secret))
 		{
 			auth.POST("/thresholds", configHandler.UpdateThreshold)
+
+			// 部门人员管理
+			auth.GET("/department-members", deptMemberHandler.List)
+			auth.GET("/department-members/:id", deptMemberHandler.GetByID)
+			auth.POST("/department-members", deptMemberHandler.Create)
+			auth.PUT("/department-members/:id", deptMemberHandler.Update)
+			auth.DELETE("/department-members/:id", deptMemberHandler.Delete)
+			auth.POST("/department-members/import", deptMemberHandler.ImportExcel)
 			auth.GET("/users", userHandler.List)
 			auth.GET("/users/:id", userHandler.GetByID)
 			auth.POST("/users", userHandler.Create)

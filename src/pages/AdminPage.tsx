@@ -60,6 +60,21 @@ interface SiliconContent {
   created_at: string;
 }
 
+interface DepartmentMember {
+  id: string;
+  level1_dept: string;
+  level2_dept: string;
+  level3_dept?: string;
+  level4_dept?: string;
+  username: string;
+  is_coder: boolean;
+  is_ai_native_pilot: boolean;
+  pilot_date?: string;
+  team_ai_native_contact?: string;
+  remark?: string;
+  created_at: string;
+}
+
 interface ImportResult {
   success_count: number;
   fail_count: number;
@@ -211,7 +226,7 @@ const formatTokens = (n: number): string => {
 };
 
 export const AdminPage: React.FC = () => {
-  const [activeTab, setActiveTab] = useState<'users' | 'team-savings' | 'token-usages' | 'silicon-contents' | 'config'>('users');
+  const [activeTab, setActiveTab] = useState<'users' | 'team-savings' | 'token-usages' | 'silicon-contents' | 'department-members' | 'config'>('users');
   const [token, setToken] = useState(localStorage.getItem('admin_token') || '');
   const [isLoginOpen, setIsLoginOpen] = useState(!token);
   const [loginForm, setLoginForm] = useState({ username: '', password: '' });
@@ -281,6 +296,24 @@ export const AdminPage: React.FC = () => {
   const [siliconImportResult, setSiliconImportResult] = useState<ImportResult | null>(null);
   const [isSiliconImportResultOpen, setIsSiliconImportResultOpen] = useState(false);
   const siliconFileInputRef = useRef<HTMLInputElement>(null);
+
+  // DepartmentMember states
+  const [deptMembers, setDeptMembers] = useState<DepartmentMember[]>([]);
+  const [deptMemberTotal, setDeptMemberTotal] = useState(0);
+  const [deptMemberPage, setDeptMemberPage] = useState(1);
+  const [deptMemberPageSize] = useState(20);
+  const [deptMemberKeyword, setDeptMemberKeyword] = useState('');
+  const [deptMemberLoading, setDeptMemberLoading] = useState(false);
+  const [deptMemberLevel2, setDeptMemberLevel2] = useState('');
+  const [deptMemberLevel3, setDeptMemberLevel3] = useState('');
+  const [deptMemberLevel4, setDeptMemberLevel4] = useState('');
+  const [isDeptMemberImportOpen, setIsDeptMemberImportOpen] = useState(false);
+  const [deptMemberImportFile, setDeptMemberImportFile] = useState<File | null>(null);
+  const [deptMemberImportLoading, setDeptMemberImportLoading] = useState(false);
+  const [deptMemberImportResult, setDeptMemberImportResult] = useState<ImportResult | null>(null);
+  const [isDeptMemberImportResultOpen, setIsDeptMemberImportResultOpen] = useState(false);
+  const deptMemberFileInputRef = useRef<HTMLInputElement>(null);
+  const [deptMemberTotalPages, setDeptMemberTotalPages] = useState(0);
 
   const handleLogout = () => {
     localStorage.removeItem('admin_token');
@@ -612,6 +645,67 @@ export const AdminPage: React.FC = () => {
   const tokenUsageTotalPages = Math.ceil(tokenUsageTotal / tokenUsagePageSize);
   const siliconTotalPages = Math.ceil(siliconTotal / siliconPageSize);
 
+  // DepartmentMember CRUD
+  const fetchDeptMembers = useCallback(async () => {
+    if (!token) return;
+    setDeptMemberLoading(true);
+    try {
+      let url = `${API_BASE}/department-members?page=${deptMemberPage}&page_size=${deptMemberPageSize}&keyword=${encodeURIComponent(deptMemberKeyword)}`;
+      if (deptMemberLevel2) url += `&level2_dept=${encodeURIComponent(deptMemberLevel2)}`;
+      if (deptMemberLevel3) url += `&level3_dept=${encodeURIComponent(deptMemberLevel3)}`;
+      if (deptMemberLevel4) url += `&level4_dept=${encodeURIComponent(deptMemberLevel4)}`;
+      const res = await fetch(url, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      const data = await res.json();
+      if (data.code === 0) {
+        setDeptMembers(data.data.list);
+        setDeptMemberTotal(data.data.total);
+        setDeptMemberTotalPages(data.data.total_page);
+      } else if (data.code === 401) {
+        handleLogout();
+      }
+    } catch (err) {
+      console.error(err);
+    } finally {
+      setDeptMemberLoading(false);
+    }
+  }, [token, deptMemberPage, deptMemberPageSize, deptMemberKeyword, deptMemberLevel2, deptMemberLevel3, deptMemberLevel4]);
+
+  useEffect(() => {
+    if (activeTab === 'department-members') fetchDeptMembers();
+  }, [fetchDeptMembers, activeTab]);
+
+  const handleDeptMemberImport = async () => {
+    if (!deptMemberImportFile) {
+      alert('请选择文件');
+      return;
+    }
+    setDeptMemberImportLoading(true);
+    try {
+      const formData = new FormData();
+      formData.append('file', deptMemberImportFile);
+      const res = await fetch(`${API_BASE}/department-members/import`, {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${token}` },
+        body: formData,
+      });
+      const data = await res.json();
+      if (data.code === 0) {
+        setDeptMemberImportResult(data.data);
+        setIsDeptMemberImportOpen(false);
+        setDeptMemberImportFile(null);
+        setIsDeptMemberImportResultOpen(true);
+        fetchDeptMembers();
+      } else {
+        alert(data.message || '导入失败');
+      }
+    } catch (err) {
+      alert('网络错误');
+    } finally {
+      setDeptMemberImportLoading(false);
+    }
+  };
   // SiliconContent CRUD
   const fetchSiliconContents = useCallback(async () => {
     if (!token) return;
@@ -674,6 +768,24 @@ export const AdminPage: React.FC = () => {
     }
   };
 
+  const handleDeptMemberDelete = async (id: string) => {
+    if (!confirm('确定要删除该部门人员记录吗？')) return;
+    try {
+      const res = await fetch(`${API_BASE}/department-members/${id}`, {
+        method: 'DELETE',
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      const data = await res.json();
+      if (data.code === 0) {
+        fetchDeptMembers();
+      } else {
+        alert(data.message || '删除失败');
+      }
+    } catch (err) {
+      alert('网络错误');
+    }
+  };
+
   const handleSiliconDelete = async (id: string) => {
     if (!confirm('确定要删除这条记录吗？')) return;
     try {
@@ -726,10 +838,10 @@ export const AdminPage: React.FC = () => {
             <div className="flex items-center gap-3">
               <div className="w-1 h-6 bg-cyan-400 rounded-full" />
               <h2 className="text-white font-semibold text-xl">
-                {activeTab === 'users' ? '用户管理' : activeTab === 'team-savings' ? '部署效率对比' : activeTab === 'token-usages' ? 'Token 使用量数据' : activeTab === 'silicon-contents' ? '硅含量数据' : '系统配置'}
+                {activeTab === 'users' ? '用户管理' : activeTab === 'team-savings' ? '部署效率对比' : activeTab === 'token-usages' ? 'Token 使用量数据' : activeTab === 'silicon-contents' ? '硅含量数据' : activeTab === 'department-members' ? '部门人员' : '系统配置'}
               </h2>
               <span className="text-slate-500 text-sm">
-                共 {activeTab === 'users' ? userTotal : activeTab === 'team-savings' ? savingTotal : activeTab === 'token-usages' ? tokenUsageTotal : activeTab === 'silicon-contents' ? siliconTotal : 0} 条
+                共 {activeTab === 'users' ? userTotal : activeTab === 'team-savings' ? savingTotal : activeTab === 'token-usages' ? tokenUsageTotal : activeTab === 'silicon-contents' ? siliconTotal : activeTab === 'department-members' ? deptMemberTotal : 0} 条
               </span>
             </div>
             <div className="flex items-center gap-3">
@@ -757,6 +869,12 @@ export const AdminPage: React.FC = () => {
                   className={`px-4 py-1.5 text-sm transition-colors ${activeTab === 'silicon-contents' ? 'bg-cyan-600 text-white' : 'text-slate-400 hover:text-white'}`}
                 >
                   硅含量
+                </button>
+                <button
+                  onClick={() => setActiveTab('department-members')}
+                  className={`px-4 py-1.5 text-sm transition-colors ${activeTab === 'department-members' ? 'bg-cyan-600 text-white' : 'text-slate-400 hover:text-white'}`}
+                >
+                  部门人员
                 </button>
                 <button
                   onClick={() => setActiveTab('config')}
@@ -1072,6 +1190,98 @@ export const AdminPage: React.FC = () => {
             </>
           )}
 
+          {activeTab === 'department-members' && (
+            <>
+              <div className="flex items-center gap-3 mb-4">
+                <Input
+                  placeholder="搜索姓名"
+                  value={deptMemberKeyword}
+                  onChange={e => setDeptMemberKeyword(e.target.value)}
+                  onKeyDown={e => e.key === 'Enter' && setDeptMemberPage(1)}
+                  className="w-48 bg-[#1a2235] border-slate-700 text-white placeholder:text-slate-500"
+                />
+                <Input
+                  placeholder="二级部门"
+                  value={deptMemberLevel2}
+                  onChange={e => { setDeptMemberLevel2(e.target.value); setDeptMemberPage(1); }}
+                  className="w-40 bg-[#1a2235] border-slate-700 text-white placeholder:text-slate-500"
+                />
+                <Input
+                  placeholder="三级部门"
+                  value={deptMemberLevel3}
+                  onChange={e => { setDeptMemberLevel3(e.target.value); setDeptMemberPage(1); }}
+                  className="w-40 bg-[#1a2235] border-slate-700 text-white placeholder:text-slate-500"
+                />
+                <Input
+                  placeholder="四级部门"
+                  value={deptMemberLevel4}
+                  onChange={e => { setDeptMemberLevel4(e.target.value); setDeptMemberPage(1); }}
+                  className="w-40 bg-[#1a2235] border-slate-700 text-white placeholder:text-slate-500"
+                />
+                <Button onClick={() => setDeptMemberPage(1)} className="bg-slate-700 hover:bg-slate-600 text-white">搜索</Button>
+                <Button onClick={() => setIsDeptMemberImportOpen(true)} className="bg-cyan-600 hover:bg-cyan-500 text-white">📥 导入 Excel</Button>
+              </div>
+
+              <div className="dashboard-card overflow-hidden">
+                <Table>
+                  <TableHeader>
+                    <TableRow className="border-slate-800 hover:bg-transparent">
+                      <TableHead className="text-slate-400">姓名</TableHead>
+                      <TableHead className="text-slate-400">一级部门</TableHead>
+                      <TableHead className="text-slate-400">二级部门</TableHead>
+                      <TableHead className="text-slate-400">三级部门</TableHead>
+                      <TableHead className="text-slate-400">四级部门</TableHead>
+                      <TableHead className="text-slate-400">编码人员</TableHead>
+                      <TableHead className="text-slate-400">AI Native试点</TableHead>
+                      <TableHead className="text-slate-400">试点时间</TableHead>
+                      <TableHead className="text-slate-400">操作</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {deptMemberLoading ? (
+                      <TableRow><TableCell colSpan={9} className="text-center text-slate-500 py-8">加载中...</TableCell></TableRow>
+                    ) : deptMembers.length === 0 ? (
+                      <TableRow><TableCell colSpan={9} className="text-center text-slate-500 py-8">暂无数据，请先导入 Excel</TableCell></TableRow>
+                    ) : (
+                      deptMembers.map(m => (
+                        <TableRow key={m.id} className="border-slate-800/60 hover:bg-[#111827]/50">
+                          <TableCell className="text-white font-medium">{m.username}</TableCell>
+                          <TableCell className="text-slate-300">{m.level1_dept}</TableCell>
+                          <TableCell className="text-slate-300">{m.level2_dept}</TableCell>
+                          <TableCell className="text-slate-300">{m.level3_dept || '-'}</TableCell>
+                          <TableCell className="text-slate-300">{m.level4_dept || '-'}</TableCell>
+                          <TableCell>
+                            <span className={`px-2 py-0.5 rounded text-xs font-medium ${m.is_coder ? 'bg-green-500/20 text-green-300' : 'bg-slate-500/20 text-slate-300'}`}>
+                              {m.is_coder ? '是' : '否'}
+                            </span>
+                          </TableCell>
+                          <TableCell>
+                            <span className={`px-2 py-0.5 rounded text-xs font-medium ${m.is_ai_native_pilot ? 'bg-cyan-500/20 text-cyan-300' : 'bg-slate-500/20 text-slate-300'}`}>
+                              {m.is_ai_native_pilot ? '是' : '否'}
+                            </span>
+                          </TableCell>
+                          <TableCell className="text-slate-500 text-xs">{m.pilot_date ? new Date(m.pilot_date).toLocaleDateString() : '-'}</TableCell>
+                          <TableCell>
+                            <button onClick={() => handleDeptMemberDelete(m.id)} className="text-red-400 hover:text-red-300 text-sm">删除</button>
+                          </TableCell>
+                        </TableRow>
+                      ))
+                    )}
+                  </TableBody>
+                </Table>
+                {deptMemberTotalPages > 1 && (
+                  <div className="flex items-center justify-between px-4 py-3 border-t border-slate-800/60">
+                    <span className="text-slate-500 text-sm">第 {deptMemberPage} / {deptMemberTotalPages} 页</span>
+                    <div className="flex items-center gap-2">
+                      <Button variant="outline" size="sm" onClick={() => setDeptMemberPage(p => Math.max(1, p - 1))} disabled={deptMemberPage <= 1} className="border-slate-700 text-slate-300 hover:bg-slate-800">上一页</Button>
+                      <Button variant="outline" size="sm" onClick={() => setDeptMemberPage(p => Math.min(deptMemberTotalPages, p + 1))} disabled={deptMemberPage >= deptMemberTotalPages} className="border-slate-700 text-slate-300 hover:bg-slate-800">下一页</Button>
+                    </div>
+                  </div>
+                )}
+              </div>
+            </>
+          )}
+
           {activeTab === 'config' && (
             <DashboardConfigPanel />
           )}
@@ -1159,6 +1369,85 @@ export const AdminPage: React.FC = () => {
           </div>
           <DialogFooter>
             <Button onClick={() => setIsSiliconImportResultOpen(false)} className="bg-cyan-600 hover:bg-cyan-500 text-white">确定</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* DepartmentMember Import Dialog */}
+      <Dialog open={isDeptMemberImportOpen} onOpenChange={setIsDeptMemberImportOpen}>
+        <DialogContent className="bg-[#0f1629] border border-slate-700 text-white max-w-md">
+          <DialogHeader>
+            <DialogTitle className="text-white">导入部门人员数据</DialogTitle>
+            <DialogDescription className="text-slate-400">
+              上传 Excel 文件（.xlsx），要求包含列：一级部门、二级部门、三级部门、四级部门、姓名、是否为编码人员、是否为AI Native试点人员、试点时间、团队AI接口人、备注
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4 py-4">
+            <div
+              className="border-2 border-dashed border-slate-700 rounded-lg p-6 text-center cursor-pointer hover:border-cyan-500/50 transition-colors"
+              onClick={() => deptMemberFileInputRef.current?.click()}
+            >
+              <input
+                ref={deptMemberFileInputRef}
+                type="file"
+                accept=".xlsx"
+                className="hidden"
+                onChange={e => {
+                  if (e.target.files && e.target.files[0]) {
+                    setDeptMemberImportFile(e.target.files[0]);
+                  }
+                }}
+              />
+              {deptMemberImportFile ? (
+                <div className="space-y-1">
+                  <div className="text-cyan-300 font-medium">{deptMemberImportFile.name}</div>
+                  <div className="text-slate-500 text-sm">{(deptMemberImportFile.size / 1024).toFixed(1)} KB</div>
+                </div>
+              ) : (
+                <div className="space-y-1">
+                  <div className="text-slate-400">点击选择或拖拽 Excel 文件</div>
+                  <div className="text-slate-600 text-sm">支持 .xlsx 格式</div>
+                </div>
+              )}
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => { setIsDeptMemberImportOpen(false); setDeptMemberImportFile(null); }} className="border-slate-700 text-slate-300">取消</Button>
+            <Button onClick={handleDeptMemberImport} disabled={!deptMemberImportFile || deptMemberImportLoading} className="bg-cyan-600 hover:bg-cyan-500 text-white">
+              {deptMemberImportLoading ? '导入中...' : '导入'}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* DepartmentMember Import Result Dialog */}
+      <Dialog open={isDeptMemberImportResultOpen} onOpenChange={setIsDeptMemberImportResultOpen}>
+        <DialogContent className="bg-[#0f1629] border border-slate-700 text-white max-w-md">
+          <DialogHeader>
+            <DialogTitle className="text-white">导入结果</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-3 py-2">
+            <div className="flex items-center gap-4">
+              <div className="text-center">
+                <div className="text-green-400 text-2xl font-bold">{deptMemberImportResult?.success_count || 0}</div>
+                <div className="text-slate-500 text-sm">成功</div>
+              </div>
+              <div className="text-center">
+                <div className="text-red-400 text-2xl font-bold">{deptMemberImportResult?.fail_count || 0}</div>
+                <div className="text-slate-500 text-sm">失败</div>
+              </div>
+            </div>
+            {deptMemberImportResult && deptMemberImportResult.errors && deptMemberImportResult.errors.length > 0 && (
+              <div className="bg-red-500/10 border border-red-500/30 rounded-lg p-3 max-h-40 overflow-y-auto">
+                <div className="text-red-400 text-sm font-medium mb-2">错误详情：</div>
+                {deptMemberImportResult.errors.map((err, i) => (
+                  <div key={i} className="text-red-300 text-xs">{err}</div>
+                ))}
+              </div>
+            )}
+          </div>
+          <DialogFooter>
+            <Button onClick={() => setIsDeptMemberImportResultOpen(false)} className="bg-cyan-600 hover:bg-cyan-500 text-white">确定</Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
