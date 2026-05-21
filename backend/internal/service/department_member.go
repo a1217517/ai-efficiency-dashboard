@@ -66,10 +66,31 @@ func (s *DepartmentMemberService) Delete(ctx context.Context, id string) error {
 
 func (s *DepartmentMemberService) UpsertBatch(ctx context.Context, members []*model.DepartmentMember) (*model.DepartmentMemberImportResult, error) {
 	result := &model.DepartmentMemberImportResult{BatchID: "dept-member-batch"}
+
+	// 按姓名去重：同一批 Excel 内相同姓名只保留最后一个
+	seen := make(map[string]int) // username -> lastIndex
+	for i, m := range members {
+		if m.Username == "" || m.Level1Dept == "" || m.Level2Dept == "" {
+			continue
+		}
+		seen[m.Username] = i
+	}
+
+	// 收集去重后的成员（保持原顺序中最后出现的）
+	imported := make(map[int]bool)
+	for _, idx := range seen {
+		imported[idx] = true
+	}
+
 	for i, m := range members {
 		if m.Username == "" || m.Level1Dept == "" || m.Level2Dept == "" {
 			result.FailCount++
 			result.Errors = append(result.Errors, "行"+strconv.Itoa(i+1)+": 姓名/一级部门/二级部门不能为空")
+			continue
+		}
+		if !imported[i] {
+			result.FailCount++
+			result.Errors = append(result.Errors, "行"+strconv.Itoa(i+1)+": 与前面行姓名重复，已忽略")
 			continue
 		}
 		if err := s.repo.UpsertByUsernameDept(ctx, m); err != nil {

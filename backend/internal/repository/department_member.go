@@ -27,35 +27,19 @@ func (r *DepartmentMemberRepository) Create(ctx context.Context, member *model.D
 	return r.db.WithContext(ctx).Create(member).Error
 }
 
-// UpsertByUsernameDept 根据姓名+部门层级组合创建或更新（唯一索引）
+// UpsertByUsernameDept 根据姓名创建或更新（按 username 匹配，包含已软删除记录）
 func (r *DepartmentMemberRepository) UpsertByUsernameDept(ctx context.Context, member *model.DepartmentMember) error {
 	var existing model.DepartmentMember
-	where := map[string]interface{}{
-		"username":    member.Username,
-		"level1_dept": member.Level1Dept,
-		"level2_dept": member.Level2Dept,
-	}
-	if member.Level3Dept != nil {
-		where["level3_dept"] = *member.Level3Dept
-	} else {
-		where["level3_dept"] = gorm.Expr("level3_dept IS NULL")
-	}
-	if member.Level4Dept != nil {
-		where["level4_dept"] = *member.Level4Dept
-	} else {
-		where["level4_dept"] = gorm.Expr("level4_dept IS NULL")
-	}
-
-	result := r.db.WithContext(ctx).Where(where).First(&existing)
+	result := r.db.WithContext(ctx).Unscoped().Where("username = ?", member.Username).First(&existing)
 	if result.Error != nil {
 		if result.Error == gorm.ErrRecordNotFound {
 			return r.db.WithContext(ctx).Create(member).Error
 		}
 		return result.Error
 	}
-	// 更新
+	// 恢复并更新已有记录（即使之前被软删除）
 	member.ID = existing.ID
-	return r.db.WithContext(ctx).Save(member).Error
+	return r.db.WithContext(ctx).Unscoped().Save(member).Error
 }
 
 // GetByID 根据ID获取

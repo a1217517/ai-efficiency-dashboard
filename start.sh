@@ -58,6 +58,7 @@ fi
 
 log "Step 3: 启动后端服务 (端口 8082)..."
 # 使用 nohup 后台运行
+export PORT=8082
 nohup "$BACKEND_DIR/bin/ai-efficiency-admin" > "$PROJECT_DIR/backend.log" 2>&1 &
 BACKEND_PID=$!
 sleep 2
