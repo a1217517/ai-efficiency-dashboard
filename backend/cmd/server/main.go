@@ -79,6 +79,7 @@ func main() {
 		// 部门排行 - 公开接口（看板图表需要）
 		api.GET("/department-rankings/silicon", deptRankingHandler.ListSilicon)
 		api.GET("/department-rankings/token", deptRankingHandler.ListToken)
+		api.GET("/department-rankings/members", deptRankingHandler.ListMembers)
 
 		// 部门人员聚合统计 - 公开接口（看板图表需要）
 		api.GET("/department-members/aggregate", deptMemberHandler.Aggregate)

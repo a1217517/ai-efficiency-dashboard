@@ -17,12 +17,52 @@ func NewDeptRankingRepository(db *gorm.DB) *DeptRankingRepository {
 	return &DeptRankingRepository{db: db}
 }
 
-// ListSiliconRanking 按部门层级查询硅含量排行
-func (r *DeptRankingRepository) ListSiliconRanking(ctx context.Context, level string, startDate, endDate *time.Time, limit int) ([]model.DeptRankingItem, error) {
-	var items []model.DeptRankingItem
+// buildParentConditions 根据 parent 部门构建 WHERE 条件
+func buildParentConditions(level string, parents map[string]string) string {
+	conditions := ""
+	for _, l := range []string{"level1", "level2", "level3"} {
+		if val, ok := parents[l]; ok && val != "" {
+			conditions += fmt.Sprintf(" AND dm.level1_dept = '%s'", val)
+			break // 只需要 level1 就能确定一级部门范围
+		}
+	}
+	// 注意：上面逻辑有问题，需要每个层级都判断
+	// 重新设计：根据当前 level，需要所有上级部门的条件
+	return buildParentWhere(level, parents)
+}
 
-	// 确定 GROUP BY 的字段
+func buildParentWhere(level string, parents map[string]string) string {
+	where := ""
+	if level == "level2" {
+		if v, ok := parents["level1"]; ok && v != "" {
+			where = fmt.Sprintf(" AND dm.level1_dept = '%s'", v)
+		}
+	} else if level == "level3" {
+		if v, ok := parents["level1"]; ok && v != "" {
+			where += fmt.Sprintf(" AND dm.level1_dept = '%s'", v)
+		}
+		if v, ok := parents["level2"]; ok && v != "" {
+			where += fmt.Sprintf(" AND dm.level2_dept = '%s'", v)
+		}
+	} else if level == "level4" {
+		if v, ok := parents["level1"]; ok && v != "" {
+			where += fmt.Sprintf(" AND dm.level1_dept = '%s'", v)
+		}
+		if v, ok := parents["level2"]; ok && v != "" {
+			where += fmt.Sprintf(" AND dm.level2_dept = '%s'", v)
+		}
+		if v, ok := parents["level3"]; ok && v != "" {
+			where += fmt.Sprintf(" AND dm.level3_dept = '%s'", v)
+		}
+	}
+	return where
+}
+
+// ListSiliconRanking 按部门层级查询硅含量排行（支持下钻）
+func (r *DeptRankingRepository) ListSiliconRanking(ctx context.Context, level string, parents map[string]string, startDate, endDate *time.Time, limit int) ([]model.DeptRankingItem, error) {
+	var items []model.DeptRankingItem
 	deptCol := fmt.Sprintf("dm.%s_dept", level)
+	parentWhere := buildParentWhere(level, parents)
 
 	err := r.db.WithContext(ctx).Raw(fmt.Sprintf(`
 		SELECT 
@@ -52,20 +92,20 @@ func (r *DeptRankingRepository) ListSiliconRanking(ctx context.Context, level st
 			  AND ($2::date IS NULL OR date <= $2::date)
 			GROUP BY username
 		) user_silicon ON dm.username = user_silicon.username
-		WHERE %s IS NOT NULL AND %s != ''
+		WHERE %s IS NOT NULL AND %s != ''%s
 		GROUP BY %s
 		ORDER BY avg_silicon_pct DESC
 		LIMIT $3
-	`, deptCol, level, deptCol, deptCol, deptCol), startDate, endDate, limit).Scan(&items).Error
+	`, deptCol, level, deptCol, deptCol, parentWhere, deptCol), startDate, endDate, limit).Scan(&items).Error
 
 	return items, err
 }
 
-// ListTokenRanking 按部门层级查询 Token 排行
-func (r *DeptRankingRepository) ListTokenRanking(ctx context.Context, level string, startDate, endDate *time.Time, limit int) ([]model.DeptRankingItem, error) {
+// ListTokenRanking 按部门层级查询 Token 排行（支持下钻）
+func (r *DeptRankingRepository) ListTokenRanking(ctx context.Context, level string, parents map[string]string, startDate, endDate *time.Time, limit int) ([]model.DeptRankingItem, error) {
 	var items []model.DeptRankingItem
-
 	deptCol := fmt.Sprintf("dm.%s_dept", level)
+	parentWhere := buildParentWhere(level, parents)
 
 	err := r.db.WithContext(ctx).Raw(fmt.Sprintf(`
 		SELECT 
@@ -91,11 +131,93 @@ func (r *DeptRankingRepository) ListTokenRanking(ctx context.Context, level stri
 			  AND ($2::date IS NULL OR date <= $2::date)
 			GROUP BY username
 		) user_token ON dm.username = user_token.username
-		WHERE %s IS NOT NULL AND %s != ''
+		WHERE %s IS NOT NULL AND %s != ''%s
 		GROUP BY %s
 		ORDER BY avg_daily_tokens DESC
 		LIMIT $3
-	`, deptCol, level, deptCol, deptCol, deptCol), startDate, endDate, limit).Scan(&items).Error
+	`, deptCol, level, deptCol, deptCol, parentWhere, deptCol), startDate, endDate, limit).Scan(&items).Error
+
+	return items, err
+}
+
+// MemberDetail 成员详情（带硅含量和Token数据）
+type MemberDetail struct {
+	Username         string  `json:"username"`
+	RoleCategory     string  `json:"role_category"`
+	Level1Dept       string  `json:"level1_dept"`
+	Level2Dept       string  `json:"level2_dept"`
+	Level3Dept       *string `json:"level3_dept"`
+	Level4Dept       *string `json:"level4_dept"`
+	SiliconPct       float64 `json:"silicon_percentage"`
+	AILines          int64   `json:"ai_lines"`
+	TotalLines       int64   `json:"total_lines"`
+	DailyTokens      int64   `json:"daily_tokens"`
+	TotalTokens      int64   `json:"total_tokens"`
+	Cost             float64 `json:"cost"`
+}
+
+// ListMembers 查询指定部门路径下的成员列表
+func (r *DeptRankingRepository) ListMembers(ctx context.Context, parents map[string]string, startDate, endDate *time.Time) ([]MemberDetail, error) {
+	var items []MemberDetail
+
+	where := ""
+	if v, ok := parents["level1"]; ok && v != "" {
+		where += fmt.Sprintf(" AND dm.level1_dept = '%s'", v)
+	}
+	if v, ok := parents["level2"]; ok && v != "" {
+		where += fmt.Sprintf(" AND dm.level2_dept = '%s'", v)
+	}
+	if v, ok := parents["level3"]; ok && v != "" {
+		where += fmt.Sprintf(" AND dm.level3_dept = '%s'", v)
+	}
+	if v, ok := parents["level4"]; ok && v != "" {
+		where += fmt.Sprintf(" AND dm.level4_dept = '%s'", v)
+	}
+
+	err := r.db.WithContext(ctx).Raw(fmt.Sprintf(`
+		SELECT 
+			dm.username,
+			dm.role_category,
+			dm.level1_dept,
+			dm.level2_dept,
+			dm.level3_dept,
+			dm.level4_dept,
+			COALESCE(user_silicon.silicon_pct, 0)::double precision AS silicon_percentage,
+			COALESCE(user_silicon.ai_lines, 0)::bigint AS ai_lines,
+			COALESCE(user_silicon.total_lines, 0)::bigint AS total_lines,
+			COALESCE(user_token.daily_tokens, 0)::bigint AS daily_tokens,
+			COALESCE(user_token.total_tokens, 0)::bigint AS total_tokens,
+			COALESCE(user_token.cost, 0)::double precision AS cost
+		FROM department_members dm
+		LEFT JOIN (
+			SELECT 
+				username,
+				CASE 
+					WHEN COALESCE(SUM(total_lines), 0) > 0 
+					THEN (COALESCE(SUM(ai_lines), 0)::double precision / COALESCE(SUM(total_lines), 0)::double precision * 100)
+					ELSE 0 
+				END::double precision AS silicon_pct,
+				COALESCE(SUM(ai_lines), 0)::bigint AS ai_lines,
+				COALESCE(SUM(total_lines), 0)::bigint AS total_lines
+			FROM silicon_contents
+			WHERE ($1::date IS NULL OR date >= $1::date)
+			  AND ($2::date IS NULL OR date <= $2::date)
+			GROUP BY username
+		) user_silicon ON dm.username = user_silicon.username
+		LEFT JOIN (
+			SELECT 
+				username,
+				COALESCE(SUM(daily_tokens), 0)::bigint AS daily_tokens,
+				COALESCE(SUM(total_tokens), 0)::bigint AS total_tokens,
+				COALESCE(SUM(cost), 0)::double precision AS cost
+			FROM token_usages
+			WHERE ($1::date IS NULL OR date >= $1::date)
+			  AND ($2::date IS NULL OR date <= $2::date)
+			GROUP BY username
+		) user_token ON dm.username = user_token.username
+		WHERE 1=1%s
+		ORDER BY COALESCE(user_silicon.silicon_pct, 0) DESC
+	`, where), startDate, endDate).Scan(&items).Error
 
 	return items, err
 }

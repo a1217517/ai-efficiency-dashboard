@@ -16,8 +16,8 @@ func NewDeptRankingService(repo *repository.DeptRankingRepository) *DeptRankingS
 	return &DeptRankingService{repo: repo}
 }
 
-func (s *DeptRankingService) ListSiliconRanking(ctx context.Context, level string, startDate, endDate *time.Time, limit int) (*model.DeptRankingListResponse, error) {
-	items, err := s.repo.ListSiliconRanking(ctx, level, startDate, endDate, limit)
+func (s *DeptRankingService) ListSiliconRanking(ctx context.Context, level string, parents map[string]string, startDate, endDate *time.Time, limit int) (*model.DeptRankingListResponse, error) {
+	items, err := s.repo.ListSiliconRanking(ctx, level, parents, startDate, endDate, limit)
 	if err != nil {
 		return nil, err
 	}
@@ -30,8 +30,8 @@ func (s *DeptRankingService) ListSiliconRanking(ctx context.Context, level strin
 	}, nil
 }
 
-func (s *DeptRankingService) ListTokenRanking(ctx context.Context, level string, startDate, endDate *time.Time, limit int) (*model.DeptRankingListResponse, error) {
-	items, err := s.repo.ListTokenRanking(ctx, level, startDate, endDate, limit)
+func (s *DeptRankingService) ListTokenRanking(ctx context.Context, level string, parents map[string]string, startDate, endDate *time.Time, limit int) (*model.DeptRankingListResponse, error) {
+	items, err := s.repo.ListTokenRanking(ctx, level, parents, startDate, endDate, limit)
 	if err != nil {
 		return nil, err
 	}
@@ -42,4 +42,8 @@ func (s *DeptRankingService) ListTokenRanking(ctx context.Context, level string,
 		Total:  int64(len(items)),
 		Limit:  limit,
 	}, nil
+}
+
+func (s *DeptRankingService) ListMembers(ctx context.Context, parents map[string]string, startDate, endDate *time.Time) ([]repository.MemberDetail, error) {
+	return s.repo.ListMembers(ctx, parents, startDate, endDate)
 }
