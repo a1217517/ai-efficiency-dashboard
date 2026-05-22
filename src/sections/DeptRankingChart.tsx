@@ -139,15 +139,17 @@ export const DeptRankingChart: React.FC<DeptRankingChartProps> = ({ dateRange })
 
   const goRoot = () => setBreadcrumbs([]);
 
-  // ECharts click handler
+  // ECharts click handler — 用 name 在原始数据中查找（不受 ECharts 排序影响）
   const onSiliconChartClick = (params: any) => {
-    if (currentDepth >= 4 || !siliconData[params.dataIndex]) return;
-    drillDown(siliconData[params.dataIndex]);
+    if (currentDepth >= 4) return;
+    const item = siliconData.find(d => d.dept_name === params.name);
+    if (item) drillDown(item);
   };
 
   const onTokenChartClick = (params: any) => {
-    if (currentDepth >= 4 || !tokenData[params.dataIndex]) return;
-    drillDown(tokenData[params.dataIndex]);
+    if (currentDepth >= 4) return;
+    const item = tokenData.find(d => d.dept_name === params.name);
+    if (item) drillDown(item);
   };
 
   const siliconOption = useMemo(() => {
