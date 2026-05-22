@@ -27,6 +27,7 @@ func (r *DeptRankingRepository) ListSiliconRanking(ctx context.Context, level st
 	err := r.db.WithContext(ctx).Raw(fmt.Sprintf(`
 		SELECT 
 			%s AS dept_name,
+			'%s' AS dept_level,
 			COUNT(DISTINCT dm.username) AS member_count,
 			COALESCE(AVG(user_silicon.silicon_pct), 0)::double precision AS avg_silicon_pct,
 			COALESCE(SUM(user_silicon.ai_lines), 0)::bigint AS total_ai_lines,
@@ -55,7 +56,7 @@ func (r *DeptRankingRepository) ListSiliconRanking(ctx context.Context, level st
 		GROUP BY %s
 		ORDER BY avg_silicon_pct DESC
 		LIMIT $3
-	`, deptCol, deptCol, deptCol, deptCol), startDate, endDate, limit).Scan(&items).Error
+	`, deptCol, level, deptCol, deptCol, deptCol), startDate, endDate, limit).Scan(&items).Error
 
 	return items, err
 }
@@ -69,6 +70,7 @@ func (r *DeptRankingRepository) ListTokenRanking(ctx context.Context, level stri
 	err := r.db.WithContext(ctx).Raw(fmt.Sprintf(`
 		SELECT 
 			%s AS dept_name,
+			'%s' AS dept_level,
 			COUNT(DISTINCT dm.username) AS member_count,
 			0::double precision AS avg_silicon_pct,
 			0::bigint AS total_ai_lines,
@@ -93,7 +95,7 @@ func (r *DeptRankingRepository) ListTokenRanking(ctx context.Context, level stri
 		GROUP BY %s
 		ORDER BY avg_daily_tokens DESC
 		LIMIT $3
-	`, deptCol, deptCol, deptCol, deptCol), startDate, endDate, limit).Scan(&items).Error
+	`, deptCol, level, deptCol, deptCol, deptCol), startDate, endDate, limit).Scan(&items).Error
 
 	return items, err
 }
