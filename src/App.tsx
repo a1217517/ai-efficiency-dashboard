@@ -4,6 +4,7 @@ import { TopBar } from './sections/TopBar';
 import { TokenRanking } from './sections/TokenRanking';
 import { PRSiliconChart } from './sections/PRSiliconChart';
 import { DeployMetricsChart } from './sections/DeployMetricsChart';
+import { DeptRankingChart } from './sections/DeptRankingChart';
 import { KPICards } from './sections/KPICards';
 import { AdminPage } from './pages/AdminPage';
 
@@ -31,7 +32,7 @@ function Dashboard({ dateRange, thresholdM, siliconThreshold }: { dateRange: Dat
       {/* Main dashboard grid */}
       <main className="flex-1 p-4 grid gap-4" style={{
         gridTemplateColumns: '1fr 1fr 1fr',
-        gridTemplateRows: 'minmax(0, 1fr)',
+        gridTemplateRows: 'minmax(0, 1fr) minmax(0, 1fr)',
         minHeight: 0,
       }}>
         <div style={{ gridRow: '1 / 2', gridColumn: '1 / 2' }}>
@@ -42,6 +43,9 @@ function Dashboard({ dateRange, thresholdM, siliconThreshold }: { dateRange: Dat
         </div>
         <div style={{ gridRow: '1 / 2', gridColumn: '3 / 4' }}>
           <DeployMetricsChart />
+        </div>
+        <div style={{ gridRow: '2 / 3', gridColumn: '1 / 4' }}>
+          <DeptRankingChart dateRange={dateRange} />
         </div>
       </main>
 

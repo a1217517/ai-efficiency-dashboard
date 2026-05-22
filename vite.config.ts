@@ -11,7 +11,6 @@ export default defineConfig({
     minify: false,
     rollupOptions: {
       treeshake: false,
-      preserveModules: true,
       output: {
         entryFileNames: 'assets/[name].js',
         chunkFileNames: 'assets/[name].js',
