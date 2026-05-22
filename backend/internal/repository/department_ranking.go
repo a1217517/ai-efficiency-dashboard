@@ -17,20 +17,6 @@ func NewDeptRankingRepository(db *gorm.DB) *DeptRankingRepository {
 	return &DeptRankingRepository{db: db}
 }
 
-// buildParentConditions 根据 parent 部门构建 WHERE 条件
-func buildParentConditions(level string, parents map[string]string) string {
-	conditions := ""
-	for _, l := range []string{"level1", "level2", "level3"} {
-		if val, ok := parents[l]; ok && val != "" {
-			conditions += fmt.Sprintf(" AND dm.level1_dept = '%s'", val)
-			break // 只需要 level1 就能确定一级部门范围
-		}
-	}
-	// 注意：上面逻辑有问题，需要每个层级都判断
-	// 重新设计：根据当前 level，需要所有上级部门的条件
-	return buildParentWhere(level, parents)
-}
-
 func buildParentWhere(level string, parents map[string]string) string {
 	where := ""
 	if level == "level2" {
@@ -58,7 +44,7 @@ func buildParentWhere(level string, parents map[string]string) string {
 	return where
 }
 
-// ListSiliconRanking 按部门层级查询硅含量排行（支持下钻）
+// ListSiliconRanking 按部门层级查询硅含量排行
 func (r *DeptRankingRepository) ListSiliconRanking(ctx context.Context, level string, parents map[string]string, startDate, endDate *time.Time, limit int) ([]model.DeptRankingItem, error) {
 	var items []model.DeptRankingItem
 	deptCol := fmt.Sprintf("dm.%s_dept", level)
@@ -101,7 +87,7 @@ func (r *DeptRankingRepository) ListSiliconRanking(ctx context.Context, level st
 	return items, err
 }
 
-// ListTokenRanking 按部门层级查询 Token 排行（支持下钻）
+// ListTokenRanking 按部门层级查询 Token 排行
 func (r *DeptRankingRepository) ListTokenRanking(ctx context.Context, level string, parents map[string]string, startDate, endDate *time.Time, limit int) ([]model.DeptRankingItem, error) {
 	var items []model.DeptRankingItem
 	deptCol := fmt.Sprintf("dm.%s_dept", level)
@@ -142,18 +128,21 @@ func (r *DeptRankingRepository) ListTokenRanking(ctx context.Context, level stri
 
 // MemberDetail 成员详情（带硅含量和Token数据）
 type MemberDetail struct {
-	Username         string  `json:"username"`
-	RoleCategory     string  `json:"role_category"`
-	Level1Dept       string  `json:"level1_dept"`
-	Level2Dept       string  `json:"level2_dept"`
-	Level3Dept       *string `json:"level3_dept"`
-	Level4Dept       *string `json:"level4_dept"`
-	SiliconPct       float64 `json:"silicon_percentage"`
-	AILines          int64   `json:"ai_lines"`
-	TotalLines       int64   `json:"total_lines"`
-	DailyTokens      int64   `json:"daily_tokens"`
-	TotalTokens      int64   `json:"total_tokens"`
-	Cost             float64 `json:"cost"`
+	Username         string   `json:"username"`
+	RoleCategory     string   `json:"role_category"`
+	Level1Dept       string   `json:"level1_dept"`
+	Level2Dept       string   `json:"level2_dept"`
+	Level3Dept       *string  `json:"level3_dept"`
+	Level4Dept       *string  `json:"level4_dept"`
+	IsCoder          bool     `json:"is_coder"`
+	IsAINativePilot  bool     `json:"is_ai_native_pilot"`
+	PilotDate        *string  `json:"pilot_date,omitempty"`
+	SiliconPct       float64  `json:"silicon_percentage"`
+	AILines          int64    `json:"ai_lines"`
+	TotalLines       int64    `json:"total_lines"`
+	DailyTokens      int64    `json:"daily_tokens"`
+	TotalTokens      int64    `json:"total_tokens"`
+	Cost             float64  `json:"cost"`
 }
 
 // ListMembers 查询指定部门路径下的成员列表
@@ -177,11 +166,14 @@ func (r *DeptRankingRepository) ListMembers(ctx context.Context, parents map[str
 	err := r.db.WithContext(ctx).Raw(fmt.Sprintf(`
 		SELECT 
 			dm.username,
-			dm.role_category,
+			'编码人员' AS role_category,
 			dm.level1_dept,
 			dm.level2_dept,
 			dm.level3_dept,
 			dm.level4_dept,
+			dm.is_coder,
+			dm.is_ai_native_pilot,
+			COALESCE(TO_CHAR(dm.pilot_date, 'YYYY-MM-DD'), '') AS pilot_date,
 			COALESCE(user_silicon.silicon_pct, 0)::double precision AS silicon_percentage,
 			COALESCE(user_silicon.ai_lines, 0)::bigint AS ai_lines,
 			COALESCE(user_silicon.total_lines, 0)::bigint AS total_lines,
